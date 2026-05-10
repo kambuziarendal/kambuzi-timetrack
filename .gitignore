@@ -1,0 +1,13 @@
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+backend/dist/
+frontend/dist/
+.env
+backend/.env
+frontend/.env
+.test-pglite/
+.test-simple/
+timetrack-web-test/
+.DS_Store
+*.log

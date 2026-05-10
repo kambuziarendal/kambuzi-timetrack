@@ -1,0 +1,23 @@
+{
+  "name": "timetrack",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev:backend": "npm --workspace backend run dev",
+    "dev:frontend": "npm --workspace frontend run web",
+    "build": "npm --workspaces run build",
+    "test": "npm --workspaces run test --if-present",
+    "test:db": "node scripts/start-test-db.mjs",
+    "test:prepare": "npm --workspace backend run prisma:generate && npm --workspace backend exec prisma db push && npm --workspace backend run seed"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.4.5",
+    "pglite-prisma-adapter": "^0.7.2",
+    "pglite-server": "^0.1.5",
+    "playwright": "^1.59.1"
+  }
+}

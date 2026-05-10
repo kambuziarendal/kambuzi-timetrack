@@ -1,0 +1,143 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  EMPLOYEE
+}
+enum TimeEntryStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  LOCKED
+}
+enum AlertSeverity {
+  WARNING
+  VIOLATION
+}
+
+model Company {
+  id String @id @default(cuid())
+  name String
+  orgNumber String?
+  address String?
+  logoPath String?
+  timezone String @default("Europe/Oslo")
+  workWeekHours Decimal @default(37.5)
+  createdAt DateTime @default(now())
+  users User[]
+  positions Position[]
+  timeEntries TimeEntry[]
+  workRules WorkRules?
+}
+
+model User {
+  id String @id @default(cuid())
+  companyId String
+  company Company @relation(fields: [companyId], references: [id])
+  firstName String
+  lastName String
+  email String @unique
+  passwordHash String
+  role Role @default(EMPLOYEE)
+  birthDate DateTime?
+  positionId String?
+  position Position? @relation(fields: [positionId], references: [id])
+  hourlyRate Decimal?
+  paidBreakDefault Boolean @default(false)
+  employmentContractPath String?
+  expoPushToken String?
+  isActive Boolean @default(true)
+  createdAt DateTime @default(now())
+  timeEntries TimeEntry[]
+  alerts ComplianceAlert[]
+  refreshTokens RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
+}
+
+model Position {
+  id String @id @default(cuid())
+  companyId String
+  company Company @relation(fields: [companyId], references: [id])
+  name String
+  color String @default("#2563eb")
+  users User[]
+  @@unique([companyId, name])
+}
+
+model TimeEntry {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  companyId String
+  company Company @relation(fields: [companyId], references: [id])
+  date DateTime
+  startTime DateTime
+  endTime DateTime
+  breakMinutes Int @default(0)
+  totalMinutes Int
+  note String? @db.VarChar(200)
+  status TimeEntryStatus @default(DRAFT)
+  rejectionNote String?
+  processedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  alerts ComplianceAlert[]
+  @@index([companyId, date])
+  @@index([userId, date])
+}
+
+model ComplianceAlert {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  timeEntryId String?
+  timeEntry TimeEntry? @relation(fields: [timeEntryId], references: [id])
+  alertType String
+  message String
+  severity AlertSeverity
+  acknowledgedAt DateTime?
+  createdAt DateTime @default(now())
+}
+
+model WorkRules {
+  id String @id @default(cuid())
+  companyId String @unique
+  company Company @relation(fields: [companyId], references: [id])
+  maxDailyHours Decimal @default(9)
+  maxWeeklyHours Decimal @default(40)
+  overtimeThresholdDaily Decimal @default(9)
+  overtimeThresholdWeekly Decimal @default(37.5)
+  maxOvertimePerWeek Decimal @default(10)
+  minRestHoursBetweenShifts Decimal @default(11)
+  minWeeklyRestHours Decimal @default(35)
+  maxDailyHoursUnder18 Decimal @default(8)
+  maxWeeklyHoursUnder18 Decimal @default(40)
+  nightShiftStartHour Int @default(21)
+  nightShiftEndHour Int @default(6)
+}
+
+model RefreshToken {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  tokenHash String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+}
+
+model PasswordResetToken {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  tokenHash String
+  expiresAt DateTime
+  usedAt DateTime?
+  createdAt DateTime @default(now())
+}
