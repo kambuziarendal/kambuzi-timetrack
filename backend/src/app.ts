@@ -14,7 +14,7 @@ export const app = express();
 app.use(cors({ origin: env.corsOrigin, credentials: true }));
 app.use(express.json());
 app.use('/uploads', express.static(path.resolve(env.uploadDir)));
-app.get('/health', (_req, res) => res.json({ ok: true, name: 'TimeTrack API' }));
+app.get('/health', (_req, res) => res.json({ ok: true, name: 'Kambuzi Timeføring API' }));
 app.use('/api/auth', authRouter);
 app.use('/api/me', meRouter);
 app.use('/api/time-entries', timeEntriesRouter);

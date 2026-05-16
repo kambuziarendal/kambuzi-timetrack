@@ -46,7 +46,7 @@ authRouter.post('/forgot-password', async (req, res) => {
     await prisma.passwordResetToken.create({ data: { userId: user.id, tokenHash: tokenHash(token), expiresAt: new Date(Date.now() + 60*60*1000) } });
     if (env.smtp.host) {
       const transport = nodemailer.createTransport({ host: env.smtp.host, port: env.smtp.port, auth: env.smtp.user ? { user: env.smtp.user, pass: env.smtp.pass } : undefined });
-      await transport.sendMail({ from: env.smtp.from, to: user.email, subject: 'Tilbakestill passord i TimeTrack', text: `Åpne denne lenken: ${env.appUrl}/reset-password?token=${token}` });
+      await transport.sendMail({ from: env.smtp.from, to: user.email, subject: 'Tilbakestill passord i Kambuzi timeføring', text: `Åpne denne lenken: ${env.appUrl}/reset-password?token=${token}` });
     }
   }
   res.json({ message: 'Hvis e-posten finnes, sender vi en lenke for passordtilbakestilling.' });

@@ -31,7 +31,7 @@ export async function createPdf(companyId: string, from: Date, to: Date, filters
   const doc = new PDFDocument({ margin: 40 });
   const chunks: Buffer[] = [];
   doc.on('data', c => chunks.push(c));
-  doc.fontSize(20).text('TimeTrack report');
+  doc.fontSize(20).text('Kambuzi - Timeføring report');
   doc.fontSize(12).text(`${company.name} • ${from.toISOString().slice(0,10)} to ${to.toISOString().slice(0,10)}`);
   doc.moveDown().text(`Total: ${(data.totalMinutes/60).toFixed(2)} hours`);
   if (data.estimatedPay > 0) doc.text(`Estimated pay: ${data.estimatedPay.toFixed(2)} NOK`);

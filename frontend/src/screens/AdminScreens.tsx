@@ -105,9 +105,9 @@ export function WorkRules() {
   ];
   const save=async()=>{setMsg(''); setSaving(true); try{setR(await api('/admin/work-rules',{method:'PUT',body:JSON.stringify(r)})); setMsg('Reglene er lagret. Nye timeføringer vurderes mot disse grensene.');}catch(e:any){setMsg(e.message ?? 'Kunne ikke lagre regler.');}finally{setSaving(false);}};
   return <Layout title="Arbeidsregler og compliance">
-    <Text variant="titleMedium">Dette styrer varslene i TimeTrack</Text>
+    <Text variant="titleMedium">Dette styrer varslene i Kambuzi timeføring</Text>
     <Text>Reglene under brukes til å flagge mulige brudd på arbeidstid, overtid, hvile og nattarbeid. De bygger på arbeidsmiljøloven kapittel 10, særlig §§ 10-4, 10-6, 10-8 og 10-11.</Text>
-    <Text style={{backgroundColor:'#fff7ed', padding:12, borderRadius:8}}>Viktig: Å endre disse tallene endrer ikke loven. Det endrer bare når TimeTrack varsler deg. Sett aldri grensene mildere for å skjule avvik — da mister appen verdi som compliance-verktøy.</Text>
+    <Text style={{backgroundColor:'#fff7ed', padding:12, borderRadius:8}}>Viktig: Å endre disse tallene endrer ikke loven. Det endrer bare når Kambuzi timeføring varsler deg. Sett aldri grensene mildere for å skjule avvik — da mister appen verdi som compliance-verktøy.</Text>
     <Text style={{backgroundColor:'#eff6ff', padding:12, borderRadius:8}}>Anbefaling: La standardverdiene stå med mindre bedriften har dokumentert grunnlag, avtale, tariff eller særregel. Ved usikkerhet: bruk strengere grense, ikke løsere.</Text>
     {fields.map(f=><React.Fragment key={f.key}>
       <Text variant="titleSmall">{f.label}</Text>
