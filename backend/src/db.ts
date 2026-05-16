@@ -12,7 +12,15 @@ if (process.env.DATABASE_DIR) {
   const adapter = new PrismaPGlite(pglite);
   client = new PrismaClient({ adapter });
 } else {
-  client = new PrismaClient();
+  const { PrismaPg } = await import('@prisma/adapter-pg');
+  const connectionString = process.env.DATABASE_URL;
+
+  if (!connectionString) {
+    throw new Error('DATABASE_URL må være satt når DATABASE_DIR ikke brukes.');
+  }
+
+  const adapter = new PrismaPg({ connectionString });
+  client = new PrismaClient({ adapter });
 }
 
 export const prisma = client;

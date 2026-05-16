@@ -13,13 +13,20 @@ timeEntriesRouter.get('/', async (req, res) => {
   const from = req.query.from ? new Date(String(req.query.from)) : undefined;
   const to = req.query.to ? new Date(String(req.query.to)) : undefined;
   if (to) to.setHours(23, 59, 59, 999);
-  const entries = await prisma.timeEntry.findMany({ where: { companyId: req.user!.companyId, ...(isAdmin && req.query.userId ? { userId: String(req.query.userId) } : { userId: req.user!.id }), ...(req.query.status ? { status: String(req.query.status) as any } : {}), ...((from || to) ? { date: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {}) }, include: { user: { include: { position: true } } }, orderBy: [{ date: 'asc' }, { startTime: 'asc' }] });
+  const userIds = isAdmin && req.query.userIds ? String(req.query.userIds).split(',').filter(Boolean) : [];
+  const positionId = isAdmin && req.query.positionId ? String(req.query.positionId) : undefined;
+  const userFilter = isAdmin
+    ? (userIds.length ? { userId: { in: userIds } } : req.query.userId ? { userId: String(req.query.userId) } : {})
+    : { userId: req.user!.id };
+  const entries = await prisma.timeEntry.findMany({ where: { companyId: req.user!.companyId, ...userFilter, ...(positionId ? { user: { positionId } } : {}), ...(req.query.status ? { status: String(req.query.status) as any } : {}), ...((from || to) ? { date: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {}) }, include: { user: { include: { position: true } } }, orderBy: [{ date: 'asc' }, { startTime: 'asc' }] });
   res.json(entries);
 });
 
 timeEntriesRouter.post('/', async (req, res) => {
   const data = schema.parse(req.body); const targetUserId = req.user!.role === 'ADMIN' && data.userId ? data.userId : req.user!.id;
   const user = await prisma.user.findFirstOrThrow({ where: { id: targetUserId, companyId: req.user!.companyId } });
+  if (user.passwordChangeRequired) return res.status(400).json({ message: 'Du må bytte passord før du kan føre timer.' });
+  if (!user.birthDate || user.profileReviewRequired) return res.status(400).json({ message: 'Du må fylle ut og bekrefte fødselsdato under Mine opplysninger før du kan føre timer.' });
   const start = new Date(data.startTime), end = new Date(data.endTime);
   const entry = await prisma.timeEntry.create({ data: { userId: user.id, companyId: user.companyId, date: new Date(data.date), startTime: start, endTime: end, breakMinutes: data.breakMinutes, note: data.note, totalMinutes: calculateTotalMinutes(start, end, data.breakMinutes, user.paidBreakDefault) } });
   await createAlertsForEntry(entry.id);

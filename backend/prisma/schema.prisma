@@ -46,6 +46,10 @@ model User {
   passwordHash String
   role Role @default(EMPLOYEE)
   birthDate DateTime?
+  address String?
+  phone String?
+  profileReviewRequired Boolean @default(false)
+  passwordChangeRequired Boolean @default(false)
   positionId String?
   position Position? @relation(fields: [positionId], references: [id])
   hourlyRate Decimal?

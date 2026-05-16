@@ -3,20 +3,24 @@ import { Button, DataTable, Text, TextInput, Switch } from 'react-native-paper';
 import { View } from 'react-native';
 import { Layout } from '../components/Layout';
 import { api } from '../api/client';
+import { useLanguage } from '../i18n';
 
 const ROLE_COLORS = ['#2563eb','#16a34a','#dc2626','#f59e0b','#7c3aed','#0891b2','#db2777','#374151'];
 const roleName = 'arbeidsrolle';
 const dateOnly = (value: string | Date) => new Date(value).toISOString().slice(0,10);
 const timeOnly = (value: string | Date) => new Date(value).toLocaleTimeString('no-NO', { hour: '2-digit', minute: '2-digit' });
 const hours = (minutes: number) => (minutes/60).toFixed(2).replace('.', ',');
-
+const initials = (user: any) => `${user?.firstName?.[0] ?? ''}${(user?.lastName ?? '').split(/\s+/).map((p:string)=>p[0]).join('')}`.toUpperCase();
+const signedBy = (entry: any) => `${initials(entry.user)} / ${['APPROVED','LOCKED'].includes(entry.status) ? 'AEH' : ''}`;
 
 function DateField({ label, value, onChange }: { label: string; value: string; onChange: (v:string)=>void }) {
-  return <View style={{gap:4}}><Text variant="titleSmall">{label}</Text>{React.createElement('input', { type:'date', value, onChange:(e:any)=>onChange(e.target.value), style:{ fontSize:16, padding:12, border:'1px solid #999', borderRadius:4 } })}</View>;
+  return <View style={{gap:4, width:'100%', maxWidth:260}}><Text variant="titleSmall">{label}</Text>{React.createElement('input', { type:'date', value, onChange:(e:any)=>onChange(e.target.value), style:{ fontSize:16, padding:12, border:'1px solid #999', borderRadius:4, width:'100%', boxSizing:'border-box' } })}</View>;
 }
 function iso(d: Date) { return d.toISOString().slice(0,10); }
 function monthRange(offset = 0) { const now = new Date(); const start = new Date(now.getFullYear(), now.getMonth()+offset, 1); const end = new Date(now.getFullYear(), now.getMonth()+offset+1, 0); return [iso(start), iso(end)]; }
 function currentHalf(firstHalf: boolean) { const now = new Date(); const y=now.getFullYear(), m=now.getMonth(); return firstHalf ? [iso(new Date(y,m,1)), iso(new Date(y,m,15))] : [iso(new Date(y,m,16)), iso(new Date(y,m+1,0))]; }
+function payrollRange(offset = 0) { const now = new Date(); const endMonth = now.getDate() >= 12 ? now.getMonth()+1+offset : now.getMonth()+offset; const end = new Date(now.getFullYear(), endMonth, 11); const start = new Date(end.getFullYear(), end.getMonth()-1, 12); return [iso(start), iso(end)]; }
+const currentPayrollRange = () => payrollRange(0);
 
 function ColorPicker({ value, onChange }: { value: string; onChange: (v:string)=>void }) {
   return <View style={{flexDirection:'row', flexWrap:'wrap', gap:8}}>{ROLE_COLORS.map(color =>
@@ -24,12 +28,12 @@ function ColorPicker({ value, onChange }: { value: string; onChange: (v:string)=
   )}</View>;
 }
 
-export function AdminDashboard({ navigation }: any) { return <Layout title="Admin"><Text>Godkjenn timer, følg compliance-varsler og hent rapporter.</Text><Button mode="contained" onPress={()=>navigation.navigate('Godkjenning')}>Godkjenn timer</Button><Button onPress={()=>navigation.navigate('Ansatte')}>Ansatte</Button><Button onPress={()=>navigation.navigate('Stillinger')}>Arbeidsroller</Button><Button onPress={()=>navigation.navigate('Bedrift')}>Bedrift</Button><Button onPress={()=>navigation.navigate('Arbeidsregler')}>Arbeidsregler</Button><Button onPress={()=>navigation.navigate('Varsler')}>Compliance-varsler</Button><Button onPress={()=>navigation.navigate('Rapporter')}>Rapporter</Button><Button onPress={()=>navigation.navigate('Timeliste')}>Timeliste</Button></Layout> }
+export function AdminDashboard({ navigation }: any) { const { tr } = useLanguage(); return <Layout title="Admin"><Text>{tr('Approve hours, follow compliance alerts and export reports.','Godkjenn timer, følg compliance-varsler og hent rapporter.')}</Text><Button mode="contained" onPress={()=>navigation.navigate('Approvals')}>{tr('Approve hours','Godkjenn timer')}</Button><Button onPress={()=>navigation.navigate('Employees')}>{tr('Employees','Ansatte')}</Button><Button onPress={()=>navigation.navigate('Positions')}>{tr('Work roles','Arbeidsroller')}</Button><Button onPress={()=>navigation.navigate('Company')}>{tr('Company','Bedrift')}</Button><Button onPress={()=>navigation.navigate('WorkRules')}>{tr('Work rules','Arbeidsregler')}</Button><Button onPress={()=>navigation.navigate('Alerts')}>{tr('Compliance alerts','Compliance-varsler')}</Button><Button onPress={()=>navigation.navigate('Reports')}>{tr('Reports','Rapporter')}</Button><Button onPress={()=>navigation.navigate('TimeList')}>{tr('Timesheet','Timeliste')}</Button></Layout> }
 
 export function UsersAdmin() {
   const [users,setUsers]=useState<any[]>([]);
   const [positions,setPositions]=useState<any[]>([]);
-  const [form,setForm]=useState<any>({firstName:'',lastName:'',email:'',birthDate:'',password:'Passord123!',role:'EMPLOYEE',positionId:''});
+  const [form,setForm]=useState<any>({firstName:'',lastName:'',email:'',birthDate:'',address:'',phone:'',password:'Passord123!',role:'EMPLOYEE',positionId:'',profileReviewRequired:true});
   const [newRoleName,setNewRoleName]=useState('');
   const [newRoleColor,setNewRoleColor]=useState('#2563eb');
   const [msg,setMsg]=useState('');
@@ -40,14 +44,16 @@ export function UsersAdmin() {
   useEffect(()=>{load().catch((e:any)=>setMsg(e.message))},[]);
   const f=(k:string,v:any)=>setForm((x:any)=>({...x,[k]:v}));
   const createRole=async()=>{ if(!newRoleName.trim()){setMsg('Skriv navn på arbeidsrollen først.'); return undefined;} const p=await api('/admin/positions',{method:'POST',body:JSON.stringify({name:newRoleName.trim(), color:newRoleColor})}); await loadPositions(); setNewRoleName(''); return p; };
-  const create=async()=>{setMsg(''); if(!form.birthDate){setMsg('Fødselsdato må fylles ut for å kontrollere arbeidstidsregler for unge.'); return;} setSaving(true); try{let positionId=form.positionId || undefined; if(newRoleName.trim()) positionId=(await createRole()).id; await api('/admin/users',{method:'POST',body:JSON.stringify({ ...form, email: form.email.trim(), positionId })}); setForm({firstName:'',lastName:'',email:'',birthDate:'',password:'Passord123!',role:'EMPLOYEE',positionId:''}); await loadUsers(); setMsg('Ansatt opprettet.');}catch(e:any){setMsg(e.message ?? 'Kunne ikke opprette ansatt.');}finally{setSaving(false);}};
+  const create=async()=>{setMsg(''); setSaving(true); try{let positionId=form.positionId || undefined; if(newRoleName.trim()) positionId=(await createRole()).id; await api('/admin/users',{method:'POST',body:JSON.stringify({ ...form, email: form.email.trim(), positionId })}); setForm({firstName:'',lastName:'',email:'',birthDate:'',address:'',phone:'',password:'Passord123!',role:'EMPLOYEE',positionId:'',profileReviewRequired:true}); await loadUsers(); setMsg('Ansatt opprettet.');}catch(e:any){setMsg(e.message ?? 'Kunne ikke opprette ansatt.');}finally{setSaving(false);}};
   return <Layout title="Ansatte">
     <Text>Legg til ansatte og knytt dem til en arbeidsrolle, for eksempel Kokk, Servitør eller Bartender. Hvis rollen ikke finnes ennå, kan du opprette den direkte her.</Text>
     <TextInput label="Fornavn" value={form.firstName} onChangeText={v=>f('firstName',v)}/>
     <TextInput label="Etternavn" value={form.lastName} onChangeText={v=>f('lastName',v)}/>
     <TextInput label="E-post" value={form.email} onChangeText={v=>f('email',v)} autoCapitalize="none" keyboardType="email-address"/>
-    <TextInput label="Fødselsdato (YYYY-MM-DD)" value={form.birthDate} onChangeText={v=>f('birthDate',v)} placeholder="2006-05-10"/>
-    <Text style={{color:'#555'}}>Fødselsdato brukes bare for å kunne varsle riktig etter arbeidstidsregler for unge arbeidstakere.</Text>
+    <TextInput label="Fødselsdato (YYYY-MM-DD, valgfritt)" value={form.birthDate} onChangeText={v=>f('birthDate',v)} placeholder="2006-05-10"/>
+    <Text style={{color:'#555'}}>Ikke legg inn fullt fødselsnummer her. Fødselsdato brukes bare for arbeidstidsvarsler, særlig under 18.</Text>
+    <TextInput label="Adresse (valgfritt)" value={form.address} onChangeText={v=>f('address',v)}/>
+    <TextInput label="Telefon (valgfritt)" value={form.phone} onChangeText={v=>f('phone',v)} keyboardType="phone-pad"/>
     <TextInput label="Midlertidig passord" value={form.password} onChangeText={v=>f('password',v)} secureTextEntry/>
     <Text variant="titleSmall">Velg eksisterende arbeidsrolle</Text>
     <View style={{flexDirection:'row', flexWrap:'wrap', gap:8}}>
@@ -59,7 +65,7 @@ export function UsersAdmin() {
     {newRoleName.trim()?<ColorPicker value={newRoleColor} onChange={setNewRoleColor}/>:null}
     <Button mode="contained" loading={saving} disabled={saving} onPress={create}>Opprett ansatt</Button>
     {msg?<Text style={{color:msg.includes('opprettet')?'green':'red'}}>{msg}</Text>:null}
-    {users.map(u=><Text key={u.id}>{u.firstName} {u.lastName} — {u.email} — {u.birthDate ? dateOnly(u.birthDate) : 'mangler fødselsdato'} — {u.position?.name ?? 'ingen rolle'} — {u.isActive?'aktiv':'deaktivert'}</Text>)}
+    {users.map(u=><Text key={u.id}>{u.firstName} {u.lastName} — {u.email} — {u.birthDate ? dateOnly(u.birthDate) : 'mangler fødselsdato'} — {u.position?.name ?? 'ingen rolle'} — {u.profileReviewRequired?'må sjekke opplysninger':'opplysninger OK'} — {u.isActive?'aktiv':'deaktivert'}</Text>)}
   </Layout> }
 
 export function PositionsAdmin() {
@@ -116,39 +122,42 @@ export function WorkRules() {
 export function AdminApprovals() { const [entries,setEntries]=useState<any[]>([]); const load=()=>api('/time-entries?status=SUBMITTED').then(setEntries); useEffect(()=>{load().catch(()=>{})},[]); return <Layout title="Godkjenning av timer"><DataTable><DataTable.Header><DataTable.Title>Ansatt</DataTable.Title><DataTable.Title>Dato</DataTable.Title><DataTable.Title>Timer</DataTable.Title><DataTable.Title>Handling</DataTable.Title></DataTable.Header>{entries.map(e=><DataTable.Row key={e.id}><DataTable.Cell>{e.user?.firstName}</DataTable.Cell><DataTable.Cell>{e.date.slice(0,10)}</DataTable.Cell><DataTable.Cell>{(e.totalMinutes/60).toFixed(2)}</DataTable.Cell><DataTable.Cell><Button onPress={async()=>{await api(`/admin/time-entries/${e.id}/approve`,{method:'POST'}); load();}}>Godkjenn</Button></DataTable.Cell></DataTable.Row>)}</DataTable></Layout> }
 
 export function Reports() {
-  const [from,setFrom]=useState('2026-01-01'); const [to,setTo]=useState(new Date().toISOString().slice(0,10));
+  const { tr } = useLanguage();
+  const [initialFrom, initialTo] = currentPayrollRange();
+  const [from,setFrom]=useState(initialFrom); const [to,setTo]=useState(initialTo);
   const [users,setUsers]=useState<any[]>([]); const [positions,setPositions]=useState<any[]>([]); const [entries,setEntries]=useState<any[]>([]);
   const [selectedUsers,setSelectedUsers]=useState<string[]>([]); const [selectedPosition,setSelectedPosition]=useState(''); const [msg,setMsg]=useState(''); const [processing,setProcessing]=useState(false);
   useEffect(()=>{Promise.all([api('/admin/users'), api('/admin/positions')]).then(([u,p])=>{setUsers(u); setPositions(p); setSelectedUsers(u.map((x:any)=>x.id));}).catch((e:any)=>setMsg(e.message))},[]);
   const toggleUser=(id:string)=>setSelectedUsers(xs=>xs.includes(id)?xs.filter(x=>x!==id):[...xs,id]);
   const setRange=(a:string,b:string)=>{setFrom(a); setTo(b);};
-  const load=async()=>{setMsg(''); try{const all:any[]=[]; for(const id of selectedUsers){const rows=await api(`/time-entries?userId=${id}&from=${from}&to=${to}`); all.push(...rows);} setEntries(all.sort((a,b)=>`${a.user.firstName} ${a.user.lastName}`.localeCompare(`${b.user.firstName} ${b.user.lastName}`) || a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime)));}catch(e:any){setMsg(e.message ?? 'Kunne ikke hente rapport.');}};
-  const filtered=entries.filter(e=>!selectedPosition || e.user?.positionId===selectedPosition);
+  const load=async()=>{setMsg(''); try{const params = new URLSearchParams({from,to}); if(selectedUsers.length && selectedUsers.length !== users.length) params.set('userIds', selectedUsers.join(',')); if(selectedPosition) params.set('positionId', selectedPosition); const rows=await api(`/time-entries?${params.toString()}`); setEntries(rows.sort((a:any,b:any)=>`${a.user.firstName} ${a.user.lastName}`.localeCompare(`${b.user.firstName} ${b.user.lastName}`) || a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime)));}catch(e:any){setMsg(e.message ?? tr('Could not load report.','Kunne ikke hente rapport.'));}};
+  const filtered=entries;
   const unprocessed=filtered.filter(e=>!e.processedAt);
   const grouped=useMemo(()=>{const m:Record<string, any[]>={}; filtered.forEach(e=>{const key=e.userId; (m[key]??=[]).push(e);}); return m;},[filtered]);
   const grandTotal=filtered.reduce((s,e)=>s+e.totalMinutes,0);
-  const markProcessed=async()=>{ if(!filtered.length){setMsg('Ingen timer i rapporten å markere.'); return;} setProcessing(true); setMsg(''); try{await api('/admin/time-entries/mark-processed',{method:'POST',body:JSON.stringify({ids:filtered.map(e=>e.id)})}); await load(); setMsg('Timer i rapporten er markert som utbetalt/ferdig behandlet.');}catch(e:any){setMsg(e.message ?? 'Kunne ikke markere timer.');}finally{setProcessing(false);} };
+  const exportQuery = () => { const q = new URLSearchParams({from,to}); if(selectedUsers.length && selectedUsers.length !== users.length) q.set('userIds', selectedUsers.join(',')); if(selectedPosition) q.set('positionId', selectedPosition); return q.toString(); };
   const base=process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:4000/api';
-  return <Layout title="Rapporter">
-    <Text>Velg periode, ansatte og eventuelt arbeidsrolle. Rapporten viser dato, tidsrom og timer per dag, med summer per ansatt og totalt nederst.</Text>
-    <Text variant="titleSmall">Periode</Text>
+  const openExport=(format:'csv'|'pdf')=>{ const url = `${base}/reports/${format}?${exportQuery()}`; if(typeof window !== 'undefined') window.open(url, '_blank'); };
+  const markProcessed=async()=>{ if(!filtered.length){setMsg(tr('No hours in the report to mark.','Ingen timer i rapporten å markere.')); return;} setProcessing(true); setMsg(''); try{await api('/admin/time-entries/mark-processed',{method:'POST',body:JSON.stringify({ids:filtered.map(e=>e.id)})}); await load(); setMsg(tr('Report hours marked as paid/processed.','Timer i rapporten er markert som utbetalt/ferdig behandlet.'));}catch(e:any){setMsg(e.message ?? tr('Could not mark hours.','Kunne ikke markere timer.'));}finally{setProcessing(false);} };
+  return <Layout title={tr('Reports','Rapporter')}>
+    <Text>{tr('Choose period, employees and optionally work role. The report shows date, time span and hours per day, with totals per employee and overall total.','Velg periode, ansatte og eventuelt arbeidsrolle. Rapporten viser dato, tidsrom og timer per dag, med summer per ansatt og totalt nederst.')}</Text>
+    <Text variant="titleSmall">{tr('Period','Periode')}</Text>
     <View style={{flexDirection:'row', flexWrap:'wrap', gap:8}}>
-      <Button onPress={()=>{const [a,b]=monthRange(0); setRange(a,b);}}>Denne måneden</Button>
-      <Button onPress={()=>{const [a,b]=monthRange(-1); setRange(a,b);}}>Forrige måned</Button>
-      <Button onPress={()=>{const [a,b]=currentHalf(true); setRange(a,b);}}>1.–15. denne måneden</Button>
-      <Button onPress={()=>{const [a,b]=currentHalf(false); setRange(a,b);}}>16.–siste denne måneden</Button>
+      <Button mode="contained" onPress={()=>{const [a,b]=payrollRange(0); setRange(a,b);}}>{tr('Kambuzi payroll 12th–11th','Kambuzi lønn 12.–11.')}</Button>
+      <Button onPress={()=>{const [a,b]=payrollRange(-1); setRange(a,b);}}>{tr('Previous payroll period','Forrige lønnsperiode')}</Button>
+      <Button onPress={()=>{const [a,b]=monthRange(0); setRange(a,b);}}>{tr('This month','Denne måneden')}</Button>
+      <Button onPress={()=>{const [a,b]=monthRange(-1); setRange(a,b);}}>{tr('Previous month','Forrige måned')}</Button>
     </View>
-    <DateField label="Fra dato" value={from} onChange={setFrom}/><DateField label="Til dato" value={to} onChange={setTo}/>
-    <Text style={{color:'#555'}}>Snarveiene kan senere tilpasses faste lønnsperioder hvis bedriften bruker samme datoer hver måned.</Text>
-    <Text variant="titleSmall">Ansatte</Text>
-    <View style={{flexDirection:'row', flexWrap:'wrap', gap:8}}><Button mode={selectedUsers.length===users.length?'contained':'outlined'} onPress={()=>setSelectedUsers(users.map(u=>u.id))}>Alle</Button><Button mode={selectedUsers.length===0?'contained':'outlined'} onPress={()=>setSelectedUsers([])}>Ingen</Button>{users.map(u=><Button key={u.id} mode={selectedUsers.includes(u.id)?'contained':'outlined'} onPress={()=>toggleUser(u.id)}>{u.firstName} {u.lastName}</Button>)}</View>
-    <Text variant="titleSmall">Arbeidsrolle</Text>
-    <View style={{flexDirection:'row', flexWrap:'wrap', gap:8}}><Button mode={!selectedPosition?'contained':'outlined'} onPress={()=>setSelectedPosition('')}>Alle roller</Button>{positions.map(p=><Button key={p.id} mode={selectedPosition===p.id?'contained':'outlined'} buttonColor={selectedPosition===p.id?p.color:undefined} textColor={selectedPosition===p.id?'white':p.color} onPress={()=>setSelectedPosition(p.id)}>{p.name}</Button>)}</View>
-    <Button mode="contained" onPress={load}>Vis rapport</Button>
-    {msg?<Text style={{color:msg.includes('markert')?'green':'red'}}>{msg}</Text>:null}
-    {Object.entries(grouped).map(([userId, rows])=>{const user=rows[0].user; const total=rows.reduce((s:any,e:any)=>s+e.totalMinutes,0); return <View key={userId} style={{marginTop:16, gap:6}}><Text variant="titleMedium">{user.firstName} {user.lastName} {user.position?.name ? `— ${user.position.name}` : ''}</Text>{rows.map((e:any)=><View key={e.id} style={{flexDirection:'row', justifyContent:'space-between', gap:8, opacity:e.processedAt?0.55:1}}><Text>{dateOnly(e.date)}</Text><Text>{timeOnly(e.startTime)}–{timeOnly(e.endTime)}</Text><Text>{hours(e.totalMinutes)} t {e.processedAt?'✓':''}</Text></View>)}<Text style={{fontWeight:'700'}}>Sum {user.firstName}: {hours(total)} t</Text></View>})}
-    {filtered.length?<><Text variant="titleMedium" style={{marginTop:16}}>Totalt for valgte ansatte: {hours(grandTotal)} t</Text><Text>{unprocessed.length} av {filtered.length} timer er ikke markert som ferdig behandlet.</Text><Button mode="contained" loading={processing} disabled={processing} onPress={markProcessed}>Marker rapporttimer som utbetalt / ferdig behandlet</Button><Text style={{fontSize:12, color:'#666'}}>Bruk dette etter at rapporten er kontrollert og lønn/timer er ferdig behandlet. Markerte timer vises med ✓ i rapporten.</Text></>:null}
-    <Text style={{fontSize:12, color:'#666'}}>CSV/PDF eksport finnes fortsatt teknisk her, men må kobles til filtrene: {`${base}/reports/csv?from=${from}&to=${to}`}</Text>
+    <DateField label={tr('From date','Fra dato')} value={from} onChange={setFrom}/><DateField label={tr('To date','Til dato')} value={to} onChange={setTo}/>
+    <Text style={{color:'#555'}}>{tr('Kambuzi payroll uses the period from the 12th of one month through the 11th of the next month. Dates can still be changed manually.','Kambuzi-lønn bruker perioden fra og med 12. i én måned til og med 11. i neste. Datoene kan fortsatt overstyres manuelt.')}</Text>
+    <Text variant="titleSmall">{tr('Employees','Ansatte')}</Text>
+    <View style={{flexDirection:'row', flexWrap:'wrap', gap:8}}><Button mode={selectedUsers.length===users.length?'contained':'outlined'} onPress={()=>setSelectedUsers(users.map(u=>u.id))}>{tr('All','Alle')}</Button><Button mode={selectedUsers.length===0?'contained':'outlined'} onPress={()=>setSelectedUsers([])}>{tr('None','Ingen')}</Button>{users.map(u=><Button key={u.id} mode={selectedUsers.includes(u.id)?'contained':'outlined'} onPress={()=>toggleUser(u.id)}>{u.firstName} {u.lastName}</Button>)}</View>
+    <Text variant="titleSmall">{tr('Work role','Arbeidsrolle')}</Text>
+    <View style={{flexDirection:'row', flexWrap:'wrap', gap:8}}><Button mode={!selectedPosition?'contained':'outlined'} onPress={()=>setSelectedPosition('')}>{tr('All roles','Alle roller')}</Button>{positions.map(p=><Button key={p.id} mode={selectedPosition===p.id?'contained':'outlined'} buttonColor={selectedPosition===p.id?p.color:undefined} textColor={selectedPosition===p.id?'white':p.color} onPress={()=>setSelectedPosition(p.id)}>{p.name}</Button>)}</View>
+    <View style={{flexDirection:'row', flexWrap:'wrap', gap:8}}><Button mode="contained" onPress={load}>{tr('Show report','Vis rapport')}</Button><Button onPress={()=>openExport('csv')}>CSV</Button><Button onPress={()=>openExport('pdf')}>PDF</Button></View>
+    {msg?<Text style={{color:msg.includes('marked')||msg.includes('markert')?'green':'red'}}>{msg}</Text>:null}
+    {Object.entries(grouped).map(([userId, rows])=>{const user=rows[0].user; const total=rows.reduce((s:any,e:any)=>s+e.totalMinutes,0); return <View key={userId} style={{marginTop:16, gap:6}}><Text variant="titleMedium">{user.firstName} {user.lastName} {user.position?.name ? `— ${user.position.name}` : ''}</Text>{rows.map((e:any)=><View key={e.id} style={{flexDirection:'row', justifyContent:'space-between', gap:8, opacity:e.processedAt?0.55:1}}><Text>{dateOnly(e.date)}</Text><Text>{timeOnly(e.startTime)}–{timeOnly(e.endTime)}</Text><Text>{signedBy(e)}</Text><Text>{hours(e.totalMinutes)} t {e.processedAt?'✓':''}</Text></View>)}<Text style={{fontWeight:'700'}}>{tr('Total','Sum')} {user.firstName}: {hours(total)} t</Text></View>})}
+    {filtered.length?<><Text variant="titleMedium" style={{marginTop:16}}>{tr('Total for selected employees','Totalt for valgte ansatte')}: {hours(grandTotal)} t</Text><Text>{unprocessed.length} {tr('of','av')} {filtered.length} {tr('hours are not marked as processed.','timer er ikke markert som ferdig behandlet.')}</Text><Button mode="contained" loading={processing} disabled={processing} onPress={markProcessed}>{tr('Mark report hours as paid / processed','Marker rapporttimer som utbetalt / ferdig behandlet')}</Button><Text style={{fontSize:12, color:'#666'}}>{tr('Use this after the report has been checked and payroll/hours have been processed. Marked hours show ✓ in the report.','Bruk dette etter at rapporten er kontrollert og lønn/timer er ferdig behandlet. Markerte timer vises med ✓ i rapporten.')}</Text></>:null}
   </Layout> }
 
 export function ComplianceAlerts() { const [items,setItems]=useState<any[]>([]); const load=()=>api('/admin/alerts').then(setItems); useEffect(()=>{load().catch(()=>{})},[]); return <Layout title="Compliance-varsler"><Text>Varslene er tekniske hjelperegler og ikke full juridisk AML-rådgivning.</Text>{items.map(a=><Text key={a.id}>{a.severity}: {a.message} {a.acknowledgedAt?'(kvittert)':''}</Text>)}</Layout> }
