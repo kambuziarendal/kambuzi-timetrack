@@ -7,6 +7,9 @@ import { createAlertsForEntry } from '../services/complianceService.js';
 export const timeEntriesRouter = Router();
 timeEntriesRouter.use(requireAuth);
 const schema = z.object({ userId: z.string().optional(), date: z.string(), startTime: z.string(), endTime: z.string(), breakMinutes: z.number().int().min(0).default(0), note: z.string().max(200).optional() });
+const nullableNoteSchema = schema.extend({
+  note: z.preprocess((value) => value === null ? undefined : value, z.string().max(200).optional()),
+});
 
 timeEntriesRouter.get('/', async (req, res) => {
   const isAdmin = req.user!.role === 'ADMIN';
@@ -23,7 +26,7 @@ timeEntriesRouter.get('/', async (req, res) => {
 });
 
 timeEntriesRouter.post('/', async (req, res) => {
-  const data = schema.parse(req.body); const targetUserId = req.user!.role === 'ADMIN' && data.userId ? data.userId : req.user!.id;
+  const data = nullableNoteSchema.parse(req.body); const targetUserId = req.user!.role === 'ADMIN' && data.userId ? data.userId : req.user!.id;
   const user = await prisma.user.findFirstOrThrow({ where: { id: targetUserId, companyId: req.user!.companyId } });
   if (user.passwordChangeRequired) return res.status(400).json({ message: 'Du må bytte passord før du kan føre timer.' });
   if (!user.birthDate || user.profileReviewRequired) return res.status(400).json({ message: 'Du må fylle ut og bekrefte fødselsdato under Mine opplysninger før du kan føre timer.' });
@@ -36,7 +39,7 @@ timeEntriesRouter.post('/', async (req, res) => {
 timeEntriesRouter.put('/:id', async (req, res) => {
   const current = await prisma.timeEntry.findFirstOrThrow({ where: { id: req.params.id, companyId: req.user!.companyId } });
   if (req.user!.role !== 'ADMIN' && (current.userId !== req.user!.id || !['DRAFT'].includes(current.status))) return res.status(403).json({ message: 'Denne timen kan ikke redigeres.' });
-  const data = schema.partial().parse(req.body); const user = await prisma.user.findUniqueOrThrow({ where: { id: current.userId } });
+  const data = nullableNoteSchema.partial().parse(req.body); const user = await prisma.user.findUniqueOrThrow({ where: { id: current.userId } });
   const start = data.startTime ? new Date(data.startTime) : current.startTime; const end = data.endTime ? new Date(data.endTime) : current.endTime; const breakMinutes = data.breakMinutes ?? current.breakMinutes;
   const entry = await prisma.timeEntry.update({ where: { id: current.id }, data: { date: data.date ? new Date(data.date) : current.date, startTime: start, endTime: end, breakMinutes, note: data.note, totalMinutes: calculateTotalMinutes(start, end, breakMinutes, user.paidBreakDefault), status: current.status === 'APPROVED' ? 'SUBMITTED' : current.status } });
   await createAlertsForEntry(entry.id); res.json(entry);
