@@ -42,6 +42,27 @@ function ThemeButton({
   );
 }
 
+function ProductBrand({ asHeading = false }: { asHeading?: boolean }) {
+  const content = (
+    <>
+      <span className="product-brand-wordmark">KAMBUZI</span>
+      <span className="product-brand-name">Timeføring</span>
+    </>
+  );
+  return asHeading ? (
+    <h1
+      className="product-brand product-brand-heading"
+      aria-label="Kambuzi Timeføring"
+    >
+      {content}
+    </h1>
+  ) : (
+    <span className="product-brand" aria-label="Kambuzi Timeføring">
+      {content}
+    </span>
+  );
+}
+
 function LegalNotice() {
   return (
     <p className="legal-notice">
@@ -173,7 +194,7 @@ function Setup({
           <ThemeButton theme={theme} onToggle={onToggleTheme} />
         </div>
         <p className="eyebrow">Førstegangsoppsett</p>
-        <h1>Kambuzi Timeføring</h1>
+        <ProductBrand asHeading />
         <p>
           Opprett virksomheten og den første administratoren. Ingen data sendes
           til Kambuzi.
@@ -257,7 +278,7 @@ function Login({
           <ThemeButton theme={theme} onToggle={onToggleTheme} />
         </div>
         <p className="eyebrow">Selvhostet og gratis</p>
-        <h1>Kambuzi Timeføring</h1>
+        <ProductBrand asHeading />
         <p>Før timer. Send inn. Godkjenn. Eksporter.</p>
         <form onSubmit={submit} className="form-grid">
           <Field label="E-post">
@@ -315,8 +336,8 @@ function Shell({
   return (
     <>
       <header>
-        <button className="brand" onClick={() => setPage("oversikt")}>
-          Kambuzi <span>Timeføring</span>
+        <button className="brand" onClick={() => setPage("oversikt")} aria-label="Oversikt">
+          <ProductBrand />
         </button>
         <div className="header-actions">
           <span className="user-name">{user.firstName}</span>

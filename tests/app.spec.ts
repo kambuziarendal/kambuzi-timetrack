@@ -133,6 +133,13 @@ test("førstegangsoppsett, admin, ansatt og låst lønnsgrunnlag", async ({
     .selectOption({ label: `${employeeFirstName} Ansatt` });
   await page.getByRole("button", { name: "Vis rapport" }).click();
   await expect(page.getByText("Totalt: 5,50 timer")).toBeVisible();
+  if (testInfo.project.name === "mobile") {
+    await page.getByRole("button", { name: "Bruk mørkt tema" }).click();
+    await page.screenshot({
+      path: "artifacts/mobile-dark-reports.png",
+      fullPage: true,
+    });
+  }
   await page.getByRole("button", { name: "Lås godkjente i perioden" }).click();
   await expect(
     page.getByText(/1 godkjente registreringer ble låst/),

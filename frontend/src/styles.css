@@ -190,16 +190,42 @@ header {
   gap: 0.55rem;
   padding-inline: 0;
 }
-.brand::before {
-  content: "";
-  width: 0.7rem;
-  height: 0.7rem;
-  border-radius: 999px;
-  background: var(--accent);
-  box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 18%, transparent);
+.product-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.72rem;
+  line-height: 1;
 }
-.brand span {
-  font-weight: 400;
+.product-brand-wordmark {
+  color: var(--ink);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.08em;
+  font-weight: 900;
+  letter-spacing: -0.055em;
+}
+.product-brand-name {
+  border-left: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  color: var(--muted);
+  font-size: 0.62em;
+  font-weight: 750;
+  letter-spacing: 0.12em;
+  padding: 0.22rem 0 0.22rem 0.72rem;
+  text-transform: uppercase;
+}
+.product-brand-heading {
+  margin: 0 0 1rem;
+  font-size: clamp(1.75rem, 6vw, 2.5rem);
+}
+.brand .product-brand-wordmark {
+  color: #efc35c;
+}
+.brand .product-brand-name {
+  color: var(--brand-muted);
+}
+html[data-theme="dark"] .product-brand-wordmark {
+  color: #efc35c;
+}
+html[data-theme="dark"] .product-brand-name {
   color: var(--brand-muted);
 }
 .quiet {
