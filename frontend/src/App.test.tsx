@@ -37,7 +37,7 @@ it("viser førstegangsoppsett på tom installasjon", async () => {
         new Response(
           JSON.stringify(
             String(input).includes("/setup/status")
-              ? { required: true }
+              ? { required: true, browserSetupAllowed: true }
               : { user: null },
           ),
           { status: 200, headers: { "content-type": "application/json" } },
@@ -70,4 +70,20 @@ it("bytter tema og lagrer brukerens valg", async () => {
   expect(document.documentElement.dataset.theme).toBe("dark");
   expect(window.localStorage.getItem("kambuzi-theme")).toBe("dark");
   expect(screen.getByRole("button", { name: "Bruk lyst tema" })).toBeTruthy();
+});
+it("viser en tydelig feil når serveren ikke er tilgjengelig", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => Promise.reject(new Error("Nettverket svarer ikke."))),
+  );
+  render(<App />);
+  expect(
+    await screen.findByRole("heading", {
+      name: "Timeføring er ikke tilgjengelig",
+    }),
+  ).toBeTruthy();
+  expect(screen.getByRole("alert").textContent).toContain(
+    "Nettverket svarer ikke.",
+  );
+  expect(screen.getByRole("button", { name: "Prøv igjen" })).toBeTruthy();
 });

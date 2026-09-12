@@ -22,6 +22,7 @@ const schema = z.object({
     .regex(/^\/(?:[^;\s]*\/)?$/)
     .default("/"),
   SESSION_DAYS: z.coerce.number().int().min(1).max(30).default(7),
+  RELEASE_SHA: z.string().trim().min(1).max(128).default("development"),
 });
 const parsed = schema.safeParse(process.env);
 if (!parsed.success) {

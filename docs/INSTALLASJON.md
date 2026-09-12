@@ -1,6 +1,6 @@
 # Installasjon
 
-Denne veiledningen er laget for Ubuntu 24.04 og Debian 12 på `amd64` eller `arm64`. Normal installasjon bruker ferdigbygde releaseimages og krever ikke Git, Node.js, Python, Buildx eller lokalt bygg.
+Denne veiledningen er laget for Ubuntu 24.04 og Debian 12 på `amd64` eller `arm64`. Bruk [HURTIGSTART.md](HURTIGSTART.md) for anbefalt veiviser. Resten av denne siden beskriver det manuelle og avanserte løpet. Normal installasjon bruker ferdigbygde releaseimages og krever ikke Git, Node.js, Python, Buildx eller lokalt bygg.
 
 ## 1. Før du starter
 
@@ -14,7 +14,17 @@ Du trenger:
 
 Anbefalt modell er eget subdomene, for eksempel `timer.eksempel.no`, med Caddy foran appen. nginx-undermappe fungerer, men er mer følsomt for feil i path og cookies og er derfor avansert.
 
-## 2. Last ned og kontroller release
+## 2. Anbefalt: samlet offlinepakke
+
+Last ned arkitekturens `*-offline.tar.gz` og `.sha256`, kontroller filen og pakk den ut. Kjør deretter:
+
+```bash
+./scripts/bootstrap.sh offline/kambuzi-timeforing-images-*.tar.gz
+```
+
+Veiviseren oppretter første administrator lokalt, tar og restore-verifiserer første backup og installerer daglig backup når `crontab` finnes. Gå deretter direkte til HTTPS-oppsettet i punkt 6.
+
+## 3. Avansert: separate releasefiler
 
 Last ned fra samme GitHub-release:
 
@@ -33,17 +43,17 @@ sha256sum -c kambuzi-timeforing-images-*.sha256
 
 Verifiser også GitHub-attestasjonen når GitHub CLI er tilgjengelig: `gh attestation verify <fil> --repo kambuziarendal/kambuzi-timetrack`. Offlineinstallasjon kan fortsatt kontrollere SHA-256 uten GitHub-tilgang.
 
-## 3. Pakk ut og last images
+## 4. Pakk ut og last images
 
 ```bash
-tar -xzf kambuzi-timeforing-1.0.0-beta.3-<commit>-source.tar.gz
-cd kambuzi-timeforing-1.0.0-beta.3
+tar -xzf kambuzi-timeforing-<versjon>-<commit>-source.tar.gz
+cd kambuzi-timeforing-<versjon>
 ./scripts/load-offline-images.sh ../kambuzi-timeforing-images-<commit>-amd64.tar.gz
 ```
 
 Bytt til `arm64`-filen på ARM-server.
 
-## 4. Opprett konfigurasjon
+## 5. Opprett konfigurasjon
 
 ```bash
 ./scripts/install.sh
@@ -61,19 +71,13 @@ TRUST_PROXY=1
 
 `IMAGE_TAG` skal være eksakt commit-SHA fra release-manifestet. Ikke bruk `latest`.
 
-## 5. Start internt og opprett første administrator
+## 6. Start internt og opprett første administrator
 
 ```bash
-./scripts/install.sh
+./scripts/bootstrap.sh --image-tag <eksakt-release-commit-sha>
 ```
 
-Appen lytter bare på `127.0.0.1:4080`. Ikke åpne reverse proxy offentlig før første administrator er opprettet. Bruk lokal nettleser på serveren eller SSH-tunnel:
-
-```bash
-ssh -L 4080:127.0.0.1:4080 server
-```
-
-Åpne `http://127.0.0.1:4080`, opprett virksomheten og første administrator, og kontroller deretter:
+Appen lytter bare på `127.0.0.1:4080`. Veiviseren oppretter første administrator lokalt, tar første verifiserte backup og kontrollerer status. Kontroller gjerne på nytt:
 
 ```bash
 ./scripts/status.sh
@@ -81,7 +85,9 @@ ssh -L 4080:127.0.0.1:4080 server
 
 `setup_required` skal være `false` før offentlig eksponering.
 
-## 6. Caddy med eget domene
+Veiviseren oppretter administratoren uten nettleser før proxyen åpnes. Nettleseroppsett er sperret fra offentlig nett i produksjon.
+
+## 7. Caddy med eget domene
 
 ```caddyfile
 timer.eksempel.no {
@@ -95,7 +101,7 @@ Kontroller etterpå:
 curl --fail https://timer.eksempel.no/health/ready
 ```
 
-## 7. Avansert: nginx i undermappe
+## 8. Avansert: nginx i undermappe
 
 For `https://eksempel.no/timetest/`:
 

@@ -24,26 +24,25 @@ Dette er et registrerings- og dokumentasjonsverktøy. Det beregner ikke lønn, s
 
 Standardinstallasjon krever Docker Engine og Docker Compose v2 på Ubuntu 24.04 eller Debian 12. Den krever ikke Git, Node.js, Python, Buildx eller lokalt bygg.
 
-1. Last ned kildepakken, checksumfilen og riktig offlineimage for `amd64` eller `arm64` fra samme release.
-2. Kontroller SHA-256 mot releasechecksummene.
-3. Pakk ut kildepakken og gå inn i mappen.
-4. Kjør `./scripts/load-offline-images.sh ../kambuzi-timeforing-images-<sha>-<arch>.tar.gz`.
-5. Kjør `./scripts/install.sh`. Første kjøring lager `.env` og stopper.
-6. Sett `APP_URL`, `IMAGE_TAG=<release-commit-sha>` og eventuelt `HTTP_PORT` i `.env`.
-7. Kjør `./scripts/install.sh` igjen.
-8. Opprett første administrator via lokal tilgang før reverse proxy åpnes offentlig.
-9. Legg Caddy eller annen HTTPS-proxy foran `127.0.0.1:4080`.
+1. Last ned offline-installasjonspakken for `amd64` eller `arm64` og tilhørende checksum fra samme release.
+2. Kontroller SHA-256 og pakk ut arkivet.
+3. Kjør `./scripts/bootstrap.sh offline/kambuzi-timeforing-images-*.tar.gz`.
+4. Legg Caddy eller nginx med HTTPS foran `127.0.0.1:4080`.
+5. Kontroller `./scripts/status.sh` og den offentlige readiness-adressen.
 
-Se [docs/INSTALLASJON.md](docs/INSTALLASJON.md) for 10-15 minutters installasjon, domenemodell og avansert nginx-undermappe. Se [docs/DRIFT.md](docs/DRIFT.md) for status, backup, restore, oppgradering, rollback, flytting og recovery.
+Se [docs/HURTIGSTART.md](docs/HURTIGSTART.md) for 10–15 minutters installasjon. Se [docs/INSTALLASJON.md](docs/INSTALLASJON.md) for manuell installasjon, domenemodell og avansert nginx-undermappe. Se [docs/DRIFT.md](docs/DRIFT.md) for status, backup, restore, oppgradering, rollback, flytting og recovery.
+
+Se [docs/RELEASEKRAV.md](docs/RELEASEKRAV.md) for skillet mellom beta, release candidate og stabil 1.0.0.
 
 ## Releaseinnhold
 
-Hver offentlig beta.3-release skal ha:
+Hver offentlig release skal ha:
 
 - kildearkiv fra eksakt tag/commit
 - SHA-256 for kildearkiv, SBOM, manifest og imagearkiver
 - CycloneDX-SBOM
 - ferdigbygde låste `linux/amd64`- og `linux/arm64`-imagearkiver med app + `postgres:17.7-bookworm`
+- én samlet offline-installasjonspakke per arkitektur
 - GitHub Artifact Attestations for kildearkiv, SBOM, manifest og imagearkiver
 
 Ingen installasjonssteg bruker `latest`.

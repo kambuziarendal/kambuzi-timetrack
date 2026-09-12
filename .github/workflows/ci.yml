@@ -53,8 +53,18 @@ jobs:
       - run: docker compose config --quiet
       - run: docker buildx build --platform '${{ matrix.platform }}' --load --tag "kambuzi-timeforing:${GITHUB_SHA}" .
       - run: docker pull --platform '${{ matrix.platform }}' postgres:17.7-bookworm
-      - run: docker compose up -d --no-build --wait
-      - run: ./scripts/backup.sh --retention-days 30
+      - run: |
+          printf '%s\n' \
+            'http://127.0.0.1:4080' \
+            'CI testbedrift' \
+            '999999999' \
+            'CI' \
+            'Administrator' \
+            'admin@example.test' \
+            'ci-only-admin-password' \
+            'ci-only-admin-password' | \
+            ./scripts/bootstrap.sh --image-tag "$GITHUB_SHA" --insecure-local
+          docker compose exec -T app curl --fail --silent http://127.0.0.1:4000/api/setup/status | grep -q '"required":false'
       - run: |
           archive=$(find backups -maxdepth 1 -name '*.dump' -type f | head -n 1)
           CONFIRM_RESTORE=YES ./scripts/restore.sh "$archive"
@@ -130,3 +140,43 @@ jobs:
         with:
           name: selfhost-source
           path: release-a/*
+  offline-installer:
+    needs: [container-recovery, release]
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: selfhost-source
+          path: artifacts/source
+      - uses: actions/download-artifact@v4
+        with:
+          name: selfhost-image-${{ matrix.arch }}
+          path: artifacts/image
+      - run: |
+          version=$(node -p "require('./package.json').version")
+          short_sha=$(git rev-parse --short=12 HEAD)
+          root="kambuzi-timeforing-$version"
+          mkdir -p bundle
+          source_archive=$(find artifacts/source -maxdepth 1 -name '*-source.tar.gz' -type f -print -quit)
+          test -n "$source_archive"
+          tar -xzf "$source_archive" -C bundle
+          mkdir -p "bundle/$root/offline"
+          cp artifacts/image/*.tar.gz artifacts/image/*.sha256 "bundle/$root/offline/"
+          find "bundle/$root" -exec touch -h -d '@0' {} +
+          output="kambuzi-timeforing-$version-$short_sha-${{ matrix.arch }}-offline.tar.gz"
+          tar --sort=name --mtime='@0' --owner=0 --group=0 --numeric-owner -C bundle -cf - "$root" | gzip -n -9 > "$output"
+          sha256sum "$output" > "$output.sha256"
+          gzip -t "$output"
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: kambuzi-timeforing-*-offline.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: offline-installer-${{ matrix.arch }}
+          path: |
+            kambuzi-timeforing-*-offline.tar.gz
+            kambuzi-timeforing-*-offline.tar.gz.sha256

@@ -1,7 +1,7 @@
 {
   "name": "kambuzi-timeforing-backend",
   "private": true,
-  "version": "1.0.0-beta.3",
+  "version": "1.0.0-beta.4",
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "main": "dist/server.js",
@@ -12,7 +12,8 @@
     "start": "tsx src/server.ts",
     "test": "vitest run",
     "migrate": "tsx src/migrate.ts",
-    "reset-admin": "tsx src/resetAdmin.ts"
+    "reset-admin": "tsx src/resetAdmin.ts",
+    "bootstrap-admin": "tsx src/bootstrapAdmin.ts"
   },
   "dependencies": {
     "bcryptjs": "3.0.3",

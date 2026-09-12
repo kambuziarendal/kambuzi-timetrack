@@ -63,6 +63,14 @@ describe("selvhostet Timeføring API", () => {
   it("krever sikker innlogging og CSRF på alle mutasjoner", async () => {
     await admin
       .post("/api/auth/login")
+      .set("origin", "https://angriper.example")
+      .send({
+        email: "admin@example.test",
+        password: "et langt testpassord 2026",
+      })
+      .expect(403);
+    await admin
+      .post("/api/auth/login")
       .send({ email: "admin@example.test", password: "feil feil feil" })
       .expect(401);
     const login = await admin
@@ -73,6 +81,10 @@ describe("selvhostet Timeføring API", () => {
       })
       .expect(200);
     adminCsrf = login.body.csrfToken;
+    const firstSession = await admin.get("/api/auth/session").expect(200);
+    const secondSession = await admin.get("/api/auth/session").expect(200);
+    expect(firstSession.body.csrfToken).toBe(adminCsrf);
+    expect(secondSession.body.csrfToken).toBe(adminCsrf);
     const cookie = login.headers["set-cookie"]?.[0] ?? "";
     expect(cookie).toContain("HttpOnly");
     expect(cookie).toContain("SameSite=Strict");
@@ -155,6 +167,31 @@ describe("selvhostet Timeføring API", () => {
       .expect(409);
   });
   it("håndhever godkjenning og låsing som statsmaskin", async () => {
+    const submitted = await mutation(
+      employee,
+      employeeCsrf,
+      "post",
+      "/api/time-entries",
+    )
+      .send({
+        date: "2026-08-08",
+        start: "10:00",
+        end: "12:00",
+        breakMinutes: 0,
+      })
+      .expect(201);
+    await mutation(
+      employee,
+      employeeCsrf,
+      "post",
+      `/api/time-entries/${submitted.body.id}/submit`,
+    ).expect(200);
+    await mutation(
+      admin,
+      adminCsrf,
+      "delete",
+      `/api/time-entries/${submitted.body.id}`,
+    ).expect(409);
     await mutation(
       admin,
       adminCsrf,
@@ -188,6 +225,7 @@ describe("selvhostet Timeføring API", () => {
       .expect(409);
   });
   it("bruker samme filtre i rapport, CSV og PDF", async () => {
+    await admin.get("/api/reports?from=2025-01-01&to=2026-09-30").expect(400);
     const report = await admin
       .get("/api/reports?from=2026-09-01&to=2026-09-30&userIds=" + employeeId)
       .expect(200);
@@ -304,6 +342,10 @@ describe("selvhostet Timeføring API", () => {
         (row: { userId: string }) => row.userId === employeeId,
       ),
     ).toBe(true);
+    expect(
+      (await employee.get("/api/time-entries?limit=1").expect(200)).body,
+    ).toHaveLength(1);
+    await employee.get("/api/time-entries?limit=501").expect(400);
   });
   it("bevarer minst én aktiv administrator", async () => {
     const adminId = (await admin.get("/api/me").expect(200)).body.id;
@@ -353,6 +395,15 @@ describe("selvhostet Timeføring API", () => {
         "time_entries.locked",
       ]),
     );
+    const created = audit.body.find(
+      (event: any) =>
+        event.action === "time_entry.created" && event.subjectId === entryId,
+    );
+    expect(created.metadata).toMatchObject({
+      userId: employeeId,
+      date: "2026-09-10",
+      totalMinutes: 420,
+    });
   });
   it("deaktivering stopper eksisterende økt umiddelbart", async () => {
     await mutation(admin, adminCsrf, "put", `/api/admin/users/${employeeId}`)
@@ -364,12 +415,20 @@ describe("selvhostet Timeføring API", () => {
     const response = await admin.get("/api/admin/users").expect(200);
     expect(response.headers["cache-control"]).toBe("no-store");
   });
-  it("readiness viser migrasjon og database", async () => {
+  it("readiness og versjon viser migrasjon og eksakt release", async () => {
     const ready = await supertest(app).get("/health/ready").expect(200);
     expect(ready.body).toMatchObject({
       ok: true,
       database: "ok",
-      migration: "001_initial.sql",
+      migration: "002_operational_indexes.sql",
+      setupRequired: false,
+      version: "1.0.0-beta.4",
+      release: "development",
+    });
+    await supertest(app).get("/version").expect(200, {
+      name: "Kambuzi Timeføring",
+      version: "1.0.0-beta.4",
+      release: "development",
     });
   });
 });

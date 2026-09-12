@@ -6,7 +6,7 @@
 ./scripts/status.sh
 ```
 
-Scriptet viser Compose-status, `live`, `ready` og om førstegangsoppsett fortsatt er åpent.
+Scriptet viser Compose-status, `live`, `ready`, om aktiv release er identisk med `.env`, om førstegangsoppsett fortsatt er åpent, og om siste verifiserte backup er gyldig og yngre enn 36 timer.
 
 ## Daglig backup
 
@@ -48,7 +48,7 @@ Test restore på separat maskin minst månedlig.
 CONFIRM_RESTORE=YES ./scripts/restore.sh backups/timeforing-ÅÅÅÅMMDDTHHMMSSZ.dump
 ```
 
-Scriptet kontrollerer checksum når `.sha256` finnes, tar først ny verifisert pre-restore-backup, stopper appen, gjenoppretter databasen og krever grønn readiness.
+Scriptet krever og kontrollerer checksum, prøver først arkivet i en isolert database, tar en ny verifisert pre-restore-backup, stopper appen, gjenoppretter databasen og krever grønn readiness. Ved restore- eller readinessfeil gjenopprettes pre-restore-backupen automatisk.
 
 ## Oppgradering
 

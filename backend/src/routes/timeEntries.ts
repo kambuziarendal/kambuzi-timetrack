@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { pool, withTransaction } from "../db.js";
+import { pool, withTransaction, type DbClient } from "../db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { audit, httpError, id } from "../utils/http.js";
 import { calculateEntry, todayInTimezone, validDate } from "../utils/time.js";
@@ -27,6 +27,7 @@ async function timezone() {
   );
 }
 async function validateInput(
+  client: DbClient,
   data: z.infer<typeof entryInput>,
   actor: { id: string; role: string },
   excludeId?: string,
@@ -38,13 +39,14 @@ async function validateInput(
   const userId = actor.role === "ADMIN" && data.userId ? data.userId : actor.id;
   if (
     !(
-      await pool.query("SELECT 1 FROM users WHERE id=$1 AND is_active=true", [
-        userId,
-      ])
+      await client.query(
+        "SELECT 1 FROM users WHERE id=$1 AND is_active=true FOR UPDATE",
+        [userId],
+      )
     ).rowCount
   )
     throw httpError(400, "Den ansatte finnes ikke eller er deaktivert.");
-  const overlap = await pool.query(
+  const overlap = await client.query(
     `SELECT id FROM time_entries WHERE user_id=$1 AND id<>COALESCE($2::uuid,'00000000-0000-0000-0000-000000000000'::uuid) AND (work_date::timestamp + start_minutes*interval '1 minute') < ($3::date + $4::int*interval '1 minute' + CASE WHEN $5 THEN interval '1 day' ELSE interval '0' END) AND (work_date::timestamp + end_minutes*interval '1 minute' + CASE WHEN crosses_midnight THEN interval '1 day' ELSE interval '0' END) > ($3::date + $6::int*interval '1 minute')`,
     [
       userId,
@@ -69,6 +71,8 @@ timeEntriesRouter.get("/", async (req, res) => {
       .enum(["DRAFT", "SUBMITTED", "APPROVED", "LOCKED", "REJECTED"])
       .optional(),
     processed: z.enum(["yes", "no"]).optional(),
+    limit: z.coerce.number().int().min(1).max(500).default(100),
+    offset: z.coerce.number().int().min(0).max(100_000).default(0),
   });
   const q = schema.parse(req.query),
     admin = req.user!.role === "ADMIN",
@@ -95,20 +99,23 @@ timeEntriesRouter.get("/", async (req, res) => {
         ? "t.processed_at IS NOT NULL"
         : "t.processed_at IS NULL",
     );
+  values.push(q.limit, q.offset);
+  const limitParameter = `$${values.length - 1}`;
+  const offsetParameter = `$${values.length}`;
   res.json(
     (
       await pool.query(
-        `${select}${where.length ? ` WHERE ${where.join(" AND ")}` : ""} ORDER BY t.work_date DESC,t.start_minutes DESC`,
+        `${select}${where.length ? ` WHERE ${where.join(" AND ")}` : ""} ORDER BY t.work_date DESC,t.start_minutes DESC LIMIT ${limitParameter} OFFSET ${offsetParameter}`,
         values,
       )
     ).rows,
   );
 });
 timeEntriesRouter.post("/", async (req, res) => {
-  const data = entryInput.parse(req.body),
-    v = await validateInput(data, req.user!);
+  const data = entryInput.parse(req.body);
   const entryId = id();
   await withTransaction(async (client) => {
+    const v = await validateInput(client, data, req.user!);
     await client.query(
       `INSERT INTO time_entries(id,user_id,work_date,start_minutes,end_minutes,crosses_midnight,break_minutes,total_minutes,note) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
       [
@@ -129,7 +136,15 @@ timeEntriesRouter.post("/", async (req, res) => {
       "time_entry.created",
       "time_entry",
       entryId,
-      { userId: v.userId, date: data.date },
+      {
+        userId: v.userId,
+        date: data.date,
+        startMinutes: v.startMinutes,
+        endMinutes: v.endMinutes,
+        crossesMidnight: v.crossesMidnight,
+        breakMinutes: data.breakMinutes,
+        totalMinutes: v.totalMinutes,
+      },
     );
   });
   res
@@ -138,35 +153,36 @@ timeEntriesRouter.post("/", async (req, res) => {
 });
 timeEntriesRouter.put("/:id", async (req, res) => {
   const entryId = z.uuid().parse(req.params.id),
-    data = entryInput.parse(req.body),
-    current = (
-      await pool.query(
-        "SELECT user_id,status,version FROM time_entries WHERE id=$1",
+    data = entryInput.parse(req.body);
+  await withTransaction(async (client) => {
+    const current = (
+      await client.query(
+        "SELECT user_id,status,version,work_date::text AS date,start_minutes,end_minutes,crosses_midnight,break_minutes,total_minutes,note FROM time_entries WHERE id=$1 FOR UPDATE",
         [entryId],
       )
     ).rows[0];
-  if (!current) throw httpError(404, "Timeføringen finnes ikke.");
-  if (req.user!.role !== "ADMIN" && current.user_id !== req.user!.id)
-    throw httpError(403, "Du har ikke tilgang til denne timeføringen.");
-  if (
-    current.status === "LOCKED" ||
-    (req.user!.role !== "ADMIN" &&
-      !["DRAFT", "REJECTED"].includes(current.status))
-  )
-    throw httpError(409, "Timeføringen kan ikke redigeres i denne statusen.");
-  const v = await validateInput(
-      {
-        ...data,
-        userId:
-          req.user!.role === "ADMIN"
-            ? (data.userId ?? current.user_id)
-            : req.user!.id,
-      },
-      req.user!,
-      entryId,
-    ),
-    version = data.version ?? current.version;
-  await withTransaction(async (client) => {
+    if (!current) throw httpError(404, "Timeføringen finnes ikke.");
+    if (req.user!.role !== "ADMIN" && current.user_id !== req.user!.id)
+      throw httpError(403, "Du har ikke tilgang til denne timeføringen.");
+    if (
+      current.status === "LOCKED" ||
+      (req.user!.role !== "ADMIN" &&
+        !["DRAFT", "REJECTED"].includes(current.status))
+    )
+      throw httpError(409, "Timeføringen kan ikke redigeres i denne statusen.");
+    const v = await validateInput(
+        client,
+        {
+          ...data,
+          userId:
+            req.user!.role === "ADMIN"
+              ? (data.userId ?? current.user_id)
+              : req.user!.id,
+        },
+        req.user!,
+        entryId,
+      ),
+      version = data.version ?? current.version;
     const result = await client.query(
       `UPDATE time_entries SET user_id=$2,work_date=$3,start_minutes=$4,end_minutes=$5,crosses_midnight=$6,break_minutes=$7,total_minutes=$8,note=$9,status=CASE WHEN status='REJECTED' THEN 'DRAFT' ELSE status END,rejection_note=NULL,updated_at=now(),version=version+1 WHERE id=$1 AND version=$10`,
       [
@@ -193,34 +209,65 @@ timeEntriesRouter.put("/:id", async (req, res) => {
       "time_entry.updated",
       "time_entry",
       entryId,
+      {
+        before: {
+          userId: current.user_id,
+          date: current.date,
+          startMinutes: current.start_minutes,
+          endMinutes: current.end_minutes,
+          crossesMidnight: current.crosses_midnight,
+          breakMinutes: current.break_minutes,
+          totalMinutes: current.total_minutes,
+          status: current.status,
+        },
+        after: {
+          userId: v.userId,
+          date: data.date,
+          startMinutes: v.startMinutes,
+          endMinutes: v.endMinutes,
+          crossesMidnight: v.crossesMidnight,
+          breakMinutes: data.breakMinutes,
+          totalMinutes: v.totalMinutes,
+          status: current.status === "REJECTED" ? "DRAFT" : current.status,
+        },
+      },
     );
   });
   res.json((await pool.query(`${select} WHERE t.id=$1`, [entryId])).rows[0]);
 });
 timeEntriesRouter.delete("/:id", async (req, res) => {
-  const entryId = z.uuid().parse(req.params.id),
-    current = (
-      await pool.query("SELECT user_id,status FROM time_entries WHERE id=$1", [
-        entryId,
-      ])
-    ).rows[0];
-  if (!current) throw httpError(404, "Timeføringen finnes ikke.");
-  if (req.user!.role !== "ADMIN" && current.user_id !== req.user!.id)
-    throw httpError(403, "Du har ikke tilgang til denne timeføringen.");
-  if (
-    current.status === "LOCKED" ||
-    (req.user!.role !== "ADMIN" &&
-      !["DRAFT", "REJECTED"].includes(current.status))
-  )
-    throw httpError(409, "Timeføringen kan ikke slettes i denne statusen.");
+  const entryId = z.uuid().parse(req.params.id);
   await withTransaction(async (client) => {
+    const current = (
+      await client.query(
+        "SELECT user_id,status,work_date::text AS date,start_minutes,end_minutes,crosses_midnight,break_minutes,total_minutes FROM time_entries WHERE id=$1 FOR UPDATE",
+        [entryId],
+      )
+    ).rows[0];
+    if (!current) throw httpError(404, "Timeføringen finnes ikke.");
+    if (req.user!.role !== "ADMIN" && current.user_id !== req.user!.id)
+      throw httpError(403, "Du har ikke tilgang til denne timeføringen.");
+    if (!["DRAFT", "REJECTED"].includes(current.status))
+      throw httpError(
+        409,
+        "Bare utkast eller returnerte timer kan slettes. Send innsendte timer tilbake først.",
+      );
     await audit(
       client,
       req.user!.id,
       "time_entry.deleted",
       "time_entry",
       entryId,
-      { status: current.status },
+      {
+        userId: current.user_id,
+        status: current.status,
+        date: current.date,
+        startMinutes: current.start_minutes,
+        endMinutes: current.end_minutes,
+        crossesMidnight: current.crosses_midnight,
+        breakMinutes: current.break_minutes,
+        totalMinutes: current.total_minutes,
+      },
     );
     await client.query("DELETE FROM time_entries WHERE id=$1", [entryId]);
   });

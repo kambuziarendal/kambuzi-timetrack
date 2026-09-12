@@ -17,6 +17,7 @@ declare global {
     interface Request {
       user?: AppUser;
       sessionId?: string;
+      csrfToken?: string;
     }
   }
 }
@@ -34,6 +35,9 @@ function parseCookies(header = "") {
 }
 export function tokenHash(token: string) {
   return crypto.createHash("sha256").update(token).digest("hex");
+}
+export function csrfTokenFor(sessionToken: string) {
+  return tokenHash(`csrf:${sessionToken}`);
 }
 export function sessionCookie(token: string, maxAgeSeconds: number) {
   return `${env.COOKIE_NAME}=${encodeURIComponent(token)}; Path=${env.COOKIE_PATH}; HttpOnly; SameSite=Strict; Max-Age=${maxAgeSeconds}${env.SECURE_COOKIES ? "; Secure" : ""}`;
@@ -60,6 +64,7 @@ export async function optionalAuth(
   const row = result.rows[0];
   if (row) {
     req.sessionId = row.sessionId;
+    req.csrfToken = csrfTokenFor(token);
     req.user = {
       id: row.id,
       email: row.email,
@@ -98,16 +103,11 @@ export async function requireCsrf(
     return res
       .status(403)
       .json({ message: "Sikkerhetskontrollen mangler. Last siden på nytt." });
-  const result = await pool.query<{ csrf_hash: string }>(
-    "SELECT csrf_hash FROM sessions WHERE id = $1 AND revoked_at IS NULL",
-    [req.sessionId],
-  );
-  const expected = result.rows[0]?.csrf_hash;
-  const actual = tokenHash(supplied);
+  const expected = req.csrfToken;
   if (
     !expected ||
-    expected.length !== actual.length ||
-    !crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(actual))
+    expected.length !== supplied.length ||
+    !crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(supplied))
   ) {
     return res
       .status(403)

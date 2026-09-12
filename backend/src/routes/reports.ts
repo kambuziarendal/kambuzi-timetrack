@@ -22,6 +22,12 @@ async function rowsFor(raw: unknown) {
   const q = filters.parse(raw);
   if (!validDate(q.from) || !validDate(q.to) || q.from > q.to)
     throw httpError(400, "Ugyldig rapportperiode.");
+  const days =
+    (Date.parse(`${q.to}T00:00:00Z`) - Date.parse(`${q.from}T00:00:00Z`)) /
+      86_400_000 +
+    1;
+  if (days > 366)
+    throw httpError(400, "Rapportperioden kan være maksimalt 366 dager.");
   const values: unknown[] = [q.from, q.to],
     where = [`t.work_date BETWEEN $1::date AND $2::date`];
   if (q.userIds) {
@@ -46,12 +52,18 @@ async function rowsFor(raw: unknown) {
         ? "t.processed_at IS NOT NULL"
         : "t.processed_at IS NULL",
     );
-  return (
+  const rows = (
     await pool.query(
-      `SELECT t.id,t.work_date::text AS date,u.first_name AS "firstName",u.last_name AS "lastName",COALESCE(p.name,'') AS position,lpad((t.start_minutes/60)::text,2,'0')||':'||lpad((t.start_minutes%60)::text,2,'0') AS start,lpad((t.end_minutes/60)::text,2,'0')||':'||lpad((t.end_minutes%60)::text,2,'0') AS "end",t.break_minutes AS "breakMinutes",t.total_minutes AS "totalMinutes",t.status,t.note,t.processed_at AS "processedAt" FROM time_entries t JOIN users u ON u.id=t.user_id LEFT JOIN positions p ON p.id=u.position_id WHERE ${where.join(" AND ")} ORDER BY u.first_name,u.last_name,t.work_date,t.start_minutes`,
+      `SELECT t.id,t.work_date::text AS date,u.first_name AS "firstName",u.last_name AS "lastName",COALESCE(p.name,'') AS position,lpad((t.start_minutes/60)::text,2,'0')||':'||lpad((t.start_minutes%60)::text,2,'0') AS start,lpad((t.end_minutes/60)::text,2,'0')||':'||lpad((t.end_minutes%60)::text,2,'0') AS "end",t.break_minutes AS "breakMinutes",t.total_minutes AS "totalMinutes",t.status,t.note,t.processed_at AS "processedAt" FROM time_entries t JOIN users u ON u.id=t.user_id LEFT JOIN positions p ON p.id=u.position_id WHERE ${where.join(" AND ")} ORDER BY u.first_name,u.last_name,t.work_date,t.start_minutes LIMIT 20001`,
       values,
     )
   ).rows;
+  if (rows.length > 20_000)
+    throw httpError(
+      413,
+      "Rapporten er for stor. Velg en kortere periode eller færre ansatte.",
+    );
+  return rows;
 }
 reportsRouter.get("/", async (req, res) => {
   const rows = await rowsFor(req.query);

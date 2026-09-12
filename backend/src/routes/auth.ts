@@ -7,6 +7,7 @@ import { env } from "../env.js";
 import { audit, httpError, id, secret } from "../utils/http.js";
 import {
   clearSessionCookie,
+  csrfTokenFor,
   requireAuth,
   sessionCookie,
   tokenHash,
@@ -24,7 +25,7 @@ const credentials = z.object({
 });
 async function createSession(userId: string) {
   const token = secret(),
-    csrfToken = secret(),
+    csrfToken = csrfTokenFor(token),
     maxAge = env.SESSION_DAYS * 86400;
   await pool.query(
     "DELETE FROM sessions WHERE expires_at<now() OR revoked_at IS NOT NULL",
@@ -65,17 +66,12 @@ authRouter.post("/login", limiter, async (req, res) => {
 });
 authRouter.get("/session", async (req, res) => {
   if (!req.user || !req.sessionId) return res.json({ user: null });
-  const csrfToken = secret();
-  await pool.query("UPDATE sessions SET csrf_hash=$1 WHERE id=$2", [
-    tokenHash(csrfToken),
-    req.sessionId,
-  ]);
   const state = await pool.query(
     "SELECT must_change_password FROM users WHERE id=$1",
     [req.user.id],
   );
   res.json({
-    csrfToken,
+    csrfToken: req.csrfToken,
     user: {
       ...req.user,
       mustChangePassword: state.rows[0]?.must_change_password ?? false,

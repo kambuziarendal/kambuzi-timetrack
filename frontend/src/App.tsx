@@ -142,10 +142,12 @@ function Spinner() {
 
 function Setup({
   done,
+  browserSetupAllowed,
   theme,
   onToggleTheme,
 }: {
   done: () => void;
+  browserSetupAllowed: boolean;
   theme: Theme;
   onToggleTheme: () => void;
 }) {
@@ -176,36 +178,48 @@ function Setup({
           Opprett virksomheten og den første administratoren. Ingen data sendes
           til Kambuzi.
         </p>
-        <form onSubmit={submit} className="form-grid">
-          <Field label="Virksomhet">
-            <input name="companyName" required minLength={2} />
-          </Field>
-          <Field label="Organisasjonsnummer">
-            <input name="orgNumber" inputMode="numeric" />
-          </Field>
-          <div className="two">
-            <Field label="Fornavn">
-              <input name="firstName" required />
+        {!browserSetupAllowed ? (
+          <Notice type="error">
+            Oppsettet er ikke fullført. Kjør <code>scripts/bootstrap.sh</code>{" "}
+            lokalt på serveren før siden åpnes offentlig.
+          </Notice>
+        ) : (
+          <form onSubmit={submit} className="form-grid">
+            <Field label="Virksomhet">
+              <input name="companyName" required minLength={2} />
             </Field>
-            <Field label="Etternavn">
-              <input name="lastName" required />
+            <Field label="Organisasjonsnummer">
+              <input name="orgNumber" inputMode="numeric" />
             </Field>
-          </div>
-          <Field label="E-post">
-            <input name="email" type="email" autoComplete="username" required />
-          </Field>
-          <Field label="Passord" hint="Minst 12 tegn">
-            <input
-              name="password"
-              type="password"
-              autoComplete="new-password"
-              minLength={12}
-              required
-            />
-          </Field>
-          {error && <Notice type="error">{error}</Notice>}
-          <button className="primary">Fullfør oppsett</button>
-        </form>
+            <div className="two">
+              <Field label="Fornavn">
+                <input name="firstName" required />
+              </Field>
+              <Field label="Etternavn">
+                <input name="lastName" required />
+              </Field>
+            </div>
+            <Field label="E-post">
+              <input
+                name="email"
+                type="email"
+                autoComplete="username"
+                required
+              />
+            </Field>
+            <Field label="Passord" hint="Minst 12 tegn">
+              <input
+                name="password"
+                type="password"
+                autoComplete="new-password"
+                minLength={12}
+                required
+              />
+            </Field>
+            {error && <Notice type="error">{error}</Notice>}
+            <button className="primary">Fullfør oppsett</button>
+          </form>
+        )}
         <LegalNotice />
       </section>
     </main>
@@ -476,12 +490,15 @@ function EntryList({
 }) {
   const [entries, setEntries] = useState<Entry[]>([]),
     [error, setError] = useState(""),
-    [editing, setEditing] = useState<string | null>(null);
+    [editing, setEditing] = useState<string | null>(null),
+    [rejecting, setRejecting] = useState<string | null>(null),
+    [deleting, setDeleting] = useState<string | null>(null),
+    [limit, setLimit] = useState(100);
   useEffect(() => {
-    api<Entry[]>("/time-entries")
+    api<Entry[]>(`/time-entries?limit=${limit}`)
       .then(setEntries)
       .catch((x) => setError(x.message));
-  }, [refresh]);
+  }, [refresh, limit]);
   const act = async (path: string, method = "POST", body?: unknown) => {
     try {
       await api(path, {
@@ -489,6 +506,8 @@ function EntryList({
         body: body ? JSON.stringify(body) : undefined,
       });
       setEditing(null);
+      setRejecting(null);
+      setDeleting(null);
       onChange();
     } catch (x) {
       setError((x as Error).message);
@@ -613,9 +632,7 @@ function EntryList({
                           </button>
                           <button
                             className="danger-button"
-                            onClick={() =>
-                              act(`/time-entries/${e.id}`, "DELETE")
-                            }
+                            onClick={() => setDeleting(e.id)}
                           >
                             Slett
                           </button>
@@ -632,25 +649,77 @@ function EntryList({
                         </button>
                         <button
                           className="danger-button"
-                          onClick={() => {
-                            const reason = prompt("Hvorfor må timen rettes?");
-                            if (reason)
-                              act(
-                                `/admin/time-entries/${e.id}/reject`,
-                                "POST",
-                                { reason },
-                              );
-                          }}
+                          onClick={() => setRejecting(e.id)}
                         >
                           Send tilbake
                         </button>
                       </>
                     )}
                   </div>
+                  {deleting === e.id && (
+                    <div className="inline-confirm" role="alert">
+                      <p>
+                        <strong>Slette dette utkastet?</strong> Handlingen kan
+                        ikke angres.
+                      </p>
+                      <div className="actions">
+                        <button
+                          className="danger-button"
+                          onClick={() => act(`/time-entries/${e.id}`, "DELETE")}
+                        >
+                          Ja, slett utkastet
+                        </button>
+                        <button onClick={() => setDeleting(null)}>
+                          Avbryt
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {rejecting === e.id && (
+                    <form
+                      className="inline-confirm"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        const reason = new FormData(event.currentTarget).get(
+                          "reason",
+                        );
+                        return act(
+                          `/admin/time-entries/${e.id}/reject`,
+                          "POST",
+                          { reason },
+                        );
+                      }}
+                    >
+                      <Field label="Hva må den ansatte rette?">
+                        <textarea
+                          name="reason"
+                          minLength={2}
+                          maxLength={500}
+                          rows={2}
+                          required
+                          autoFocus
+                        />
+                      </Field>
+                      <div className="actions">
+                        <button className="danger-button">Send tilbake</button>
+                        <button
+                          type="button"
+                          onClick={() => setRejecting(null)}
+                        >
+                          Avbryt
+                        </button>
+                      </div>
+                    </form>
+                  )}
                 </>
               )}
             </article>
           ))}
+          {entries.length === limit && limit < 500 && (
+            <button onClick={() => setLimit((current) => current + 100)}>
+              Vis flere registreringer
+            </button>
+          )}
         </div>
       )}
     </section>
@@ -664,9 +733,13 @@ function Overview({
   user: User;
   setPage: (p: string) => void;
 }) {
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<any>(null),
+    [error, setError] = useState("");
   useEffect(() => {
-    if (user.role === "ADMIN") api("/admin/overview").then(setData);
+    if (user.role === "ADMIN")
+      api("/admin/overview")
+        .then(setData)
+        .catch((x) => setError((x as Error).message));
   }, [user.role]);
   if (user.role === "EMPLOYEE")
     return (
@@ -702,6 +775,7 @@ function Overview({
           lønnsgrunnlag.
         </p>
       </section>
+      {error && <Notice type="error">{error}</Notice>}
       <div className="stats">
         <button onClick={() => setPage("timer")}>
           <b>{data?.pending ?? "–"}</b>
@@ -738,7 +812,7 @@ function Employees({
       setPositions(p);
     });
   useEffect(() => {
-    load();
+    load().catch((x) => setMsg((x as Error).message));
   }, [refresh]);
   const create = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -923,10 +997,12 @@ function Reports() {
     Promise.all([
       api<User[]>("/admin/users"),
       api<Position[]>("/admin/positions"),
-    ]).then(([u, p]) => {
-      setUsers(u);
-      setPositions(p);
-    });
+    ])
+      .then(([u, p]) => {
+        setUsers(u);
+        setPositions(p);
+      })
+      .catch((x) => setError((x as Error).message));
   }, []);
   const query = () => {
     const p = new URLSearchParams({ from, to, processed });
@@ -1105,7 +1181,7 @@ function Settings() {
       setPositions(p);
     });
   useEffect(() => {
-    load();
+    load().catch((x) => setMsg((x as Error).message));
   }, []);
   const save = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -1259,7 +1335,9 @@ function Settings() {
 
 export function App() {
   const [loading, setLoading] = useState(true),
+    [startupError, setStartupError] = useState(""),
     [setup, setSetup] = useState(false),
+    [browserSetupAllowed, setBrowserSetupAllowed] = useState(false),
     [user, setUser] = useState<User | null>(null),
     [theme, setTheme] = useState<Theme>(initialTheme),
     [page, setPage] = useState("oversikt"),
@@ -1273,25 +1351,48 @@ export function App() {
   };
   useEffect(() => {
     Promise.all([
-      api<{ required: boolean }>("/setup/status"),
+      api<{ required: boolean; browserSetupAllowed: boolean }>("/setup/status"),
       api<{ user: User | null; csrfToken?: string }>("/auth/session"),
     ])
       .then(([s, a]) => {
         setSetup(s.required);
+        setBrowserSetupAllowed(s.browserSetupAllowed);
         if (a.csrfToken) setCsrf(a.csrfToken);
         setUser(a.user);
       })
+      .catch((error) =>
+        setStartupError(
+          error instanceof Error ? error.message : "Appen kunne ikke startes.",
+        ),
+      )
       .finally(() => setLoading(false));
   }, []);
   const changed = () => setRefresh((x) => x + 1);
   useEffect(() => {
-    if (user?.role === "ADMIN") api<User[]>("/admin/users").then(setUsers);
+    if (user?.role === "ADMIN")
+      api<User[]>("/admin/users")
+        .then(setUsers)
+        .catch(() => setUsers([]));
   }, [user, refresh]);
   if (loading) return <Spinner />;
+  if (startupError)
+    return (
+      <main className="auth">
+        <section className="auth-card">
+          <h1>Timeføring er ikke tilgjengelig</h1>
+          <Notice type="error">{startupError}</Notice>
+          <button className="primary" onClick={() => window.location.reload()}>
+            Prøv igjen
+          </button>
+          <LegalNotice />
+        </section>
+      </main>
+    );
   if (setup)
     return (
       <Setup
         done={() => setSetup(false)}
+        browserSetupAllowed={browserSetupAllowed}
         theme={theme}
         onToggleTheme={toggleTheme}
       />

@@ -1,5 +1,19 @@
 # Endringslogg
 
+## 1.0.0-beta.4 — 2026-09-12
+
+- lagt til én samlet offline-installasjonspakke og en veiviser som oppretter administrator lokalt før offentlig eksponering
+- første installasjon tar og restore-verifiserer backup og installerer daglig backup når `crontab` finnes
+- oppgraderingsprøven kjører nå kandidatens image og kontrollerer kandidatens nyeste migrasjon
+- restore prøver arkivet isolert og ruller automatisk tilbake ved restore- eller readinessfeil
+- stabile CSRF-token på tvers av faner og Origin-kontroll på mutasjoner
+- serialisert overlappsjekk hindrer parallelle dobbeltføringer for samme ansatt
+- innsendte og godkjente timer kan ikke slettes; auditspor inneholder før-/etterverdier
+- rapportperioder og timelister er avgrenset mot ubegrensede uttrekk
+- tilgjengelige bekreftelsesflater for sletting og avvisning erstatter nettleserdialoger
+- readiness viser versjon, release, migrasjon og oppsettstatus
+- lagt til driftsindekser, backupalder i status og detaljert hurtigstart
+
 ## 1.0.0-beta.3 — 2026-09-12
 
 - standardinstallasjon bruker ferdigbygde releaseimages og nekter lokalt bygg uten eksplisitt utviklerflagg
@@ -9,7 +23,6 @@
 - oppgradering krever eksakt image-tag, prøver migrasjon på databasekopi og ruller tilbake ved readinessfeil
 - CI bygger og tester offline imagepakker for amd64 og arm64 med app + postgres:17.7-bookworm
 - dokumentert signering, 10-15 minutters installasjon, Caddy, avansert nginx-undermappe, flytting, recovery og restic/S3-off-server-backup
-
 
 ## 1.0.0-beta.2 — 2026-09-12
 

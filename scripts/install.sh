@@ -31,6 +31,10 @@ chmod 700 backups
 compose config --quiet
 image_tag=$(sed -n 's/^IMAGE_TAG=//p' .env | tail -n 1)
 [ -n "$image_tag" ] || { echo 'IMAGE_TAG mangler i .env.' >&2; exit 1; }
+if [ "${ALLOW_LOCAL_BUILD:-0}" != '1' ]; then
+  case "$image_tag" in *[!0-9a-f]*) echo 'IMAGE_TAG må være en eksakt commit-SHA.' >&2; exit 1;; esac
+  [ "${#image_tag}" -eq 40 ] || { echo 'IMAGE_TAG må være en full 40-tegns commit-SHA.' >&2; exit 1; }
+fi
 if [ "${ALLOW_LOCAL_BUILD:-0}" = '1' ]; then
   compose build --pull
   compose up -d

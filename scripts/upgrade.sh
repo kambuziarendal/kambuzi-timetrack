@@ -6,6 +6,8 @@ new_tag=${1:-}
 expected_sha=${2:-}
 [ -n "$new_tag" ] || { echo 'Bruk: ./scripts/upgrade.sh <eksakt-image-tag> [imagearkiv.sha256-verdi]' >&2; exit 1; }
 case "$new_tag" in latest|*:latest|'') echo 'Oppgradering nekter latest eller tom versjon.' >&2; exit 1;; esac
+case "$new_tag" in *[!0-9a-f]*) echo 'Image-tag må være en eksakt commit-SHA.' >&2; exit 1;; esac
+[ "${#new_tag}" -eq 40 ] || { echo 'Image-tag må være en full 40-tegns commit-SHA.' >&2; exit 1; }
 [ -f .env ] || { echo '.env mangler.' >&2; exit 1; }
 compose config --quiet
 if [ -n "$expected_sha" ]; then
@@ -17,12 +19,15 @@ old_tag=$(sed -n 's/^IMAGE_TAG=//p' .env | tail -n 1)
 backup_line=$(./scripts/backup.sh | tail -n 1)
 backup_path=$(printf '%s' "$backup_line" | sed -n 's/^Verifisert backup: //p')
 [ -n "$backup_path" ] && [ -f "$backup_path" ] || { echo 'Fant ikke verifisert backup fra pre-upgrade.' >&2; exit 1; }
-trial_db="timeforing_upgrade_trial_$(date -u +%Y%m%d%H%M%S)"
+trial_db="timeforing_upgrade_trial_$(date -u +%Y%m%d%H%M%S)_$$"
 cleanup() { compose exec -T db sh -c 'dropdb -U "$POSTGRES_USER" --if-exists "$1"' sh "$trial_db" >/dev/null 2>&1 || true; }
 trap cleanup EXIT INT TERM
 compose exec -T db sh -c 'createdb -U "$POSTGRES_USER" "$1"' sh "$trial_db"
 compose exec -T db sh -c 'pg_restore -U "$POSTGRES_USER" --no-owner --no-acl --dbname="$1"' sh "$trial_db" < "$backup_path"
-compose run --rm --no-deps -e PGDATABASE="$trial_db" app sh -c 'DATABASE_URL="postgresql://${PGUSER}:${PGPASSWORD}@${PGHOST}:${PGPORT}/${PGDATABASE}" node backend/dist/migrate.js'
+IMAGE_TAG="$new_tag" compose run --rm --no-deps -e PGDATABASE="$trial_db" app sh -c 'DATABASE_URL="postgresql://${PGUSER}:${PGPASSWORD}@${PGHOST}:${PGPORT}/${PGDATABASE}" node backend/dist/migrate.js'
+expected_migration=$(find backend/migrations -maxdepth 1 -type f -name '*.sql' -exec basename {} \; | sort | tail -n 1)
+actual_migration=$(compose exec -T db sh -c 'psql -U "$POSTGRES_USER" --dbname="$1" --tuples-only --no-align --command="SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1"' sh "$trial_db")
+[ "$actual_migration" = "$expected_migration" ] || { echo "Prøvemigrasjonen brukte ikke kandidatens skjema. Forventet $expected_migration, fikk ${actual_migration:-ingen}." >&2; exit 1; }
 cleanup
 trap - EXIT INT TERM
 cp .env ".env.pre-upgrade.$(date -u +%Y%m%dT%H%M%SZ)"

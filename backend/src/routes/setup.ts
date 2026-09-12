@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { pool, withTransaction } from "../db.js";
 import { audit, httpError, id } from "../utils/http.js";
+import { env } from "../env.js";
 export const setupRouter = Router();
 const limiter = rateLimit({
   windowMs: 60 * 60_000,
@@ -11,16 +12,31 @@ const limiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
-setupRouter.get("/status", async (_req, res) =>
+function browserSetupAllowed(req: import("express").Request) {
+  const address = req.socket.remoteAddress ?? "";
+  return (
+    env.NODE_ENV !== "production" ||
+    address === "127.0.0.1" ||
+    address === "::1" ||
+    address.startsWith("::ffff:127.")
+  );
+}
+setupRouter.get("/status", async (req, res) =>
   res.json({
     required:
       Number(
         (await pool.query("SELECT count(*)::int AS count FROM app_settings"))
           .rows[0].count,
       ) === 0,
+    browserSetupAllowed: browserSetupAllowed(req),
   }),
 );
 setupRouter.post("/", limiter, async (req, res) => {
+  if (!browserSetupAllowed(req))
+    throw httpError(
+      403,
+      "Førstegangsoppsett må fullføres lokalt med installasjonsscriptet.",
+    );
   const data = z
     .object({
       companyName: z.string().trim().min(2).max(120),

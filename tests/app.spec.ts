@@ -94,12 +94,19 @@ test("førstegangsoppsett, admin, ansatt og låst lønnsgrunnlag", async ({
   await page.getByLabel("Pause (min)").fill("30");
   await page.getByRole("button", { name: "Lagre som utkast" }).click();
   await expect(page.getByText("5,50 t")).toBeVisible();
+  await page.getByRole("button", { name: "Slett", exact: true }).click();
+  await expect(page.getByText("Slette dette utkastet?")).toBeVisible();
+  await page.getByRole("button", { name: "Avbryt" }).click();
+  await expect(page.getByText("Slette dette utkastet?")).not.toBeVisible();
   await page.getByRole("button", { name: "Send inn" }).click();
   await expect(page.getByText("Sendt inn")).toBeVisible();
 
   await page.getByRole("button", { name: "Logg ut" }).click();
   await logIn(page, adminEmail, adminPassword);
   await page.getByRole("button", { name: "Timer" }).click();
+  await page.getByRole("button", { name: "Send tilbake" }).click();
+  await expect(page.getByLabel("Hva må den ansatte rette?")).toBeVisible();
+  await page.getByRole("button", { name: "Avbryt" }).click();
   await page.getByRole("button", { name: "Godkjenn" }).click();
   await expect(page.getByText("Godkjent")).toBeVisible();
   await page.getByRole("button", { name: "Rapporter" }).click();

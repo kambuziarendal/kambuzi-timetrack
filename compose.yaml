@@ -39,6 +39,7 @@ services:
       COOKIE_PATH: ${COOKIE_PATH:-/}
       TRUST_PROXY: ${TRUST_PROXY:-1}
       SESSION_DAYS: ${SESSION_DAYS:-7}
+      RELEASE_SHA: ${IMAGE_TAG:-local}
     ports:
       - "127.0.0.1:${HTTP_PORT:-4080}:4000"
     healthcheck:

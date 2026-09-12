@@ -537,6 +537,19 @@ textarea {
   width: 100%;
   justify-content: flex-end;
 }
+.inline-confirm {
+  width: 100%;
+  padding: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+}
+.inline-confirm p {
+  margin-top: 0;
+}
+.inline-confirm .field {
+  margin-bottom: 0.75rem;
+}
 .edit-entry {
   display: grid;
   grid-template-columns: repeat(5, minmax(100px, 1fr));
