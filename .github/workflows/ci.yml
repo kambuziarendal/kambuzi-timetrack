@@ -108,6 +108,14 @@ jobs:
           touch backups/.kambuzi-timeforing-backups
       - run: docker buildx build --platform linux/amd64 --load --tag "kambuzi-timeforing:${BETA2_SHA}" .
       - run: docker compose up -d --no-build --wait
+      - name: Initialize beta.2 fixture
+        run: |
+          docker compose exec -T app curl --fail --silent --show-error \
+            --header 'content-type: application/json' \
+            --data '{"companyName":"CI upgrade test","firstName":"CI","lastName":"Admin","email":"upgrade@example.test","password":"ci-only-upgrade-password"}' \
+            http://127.0.0.1:4000/api/setup
+          docker compose exec -T app curl --fail --silent --show-error \
+            http://127.0.0.1:4000/api/setup/status | grep -q '"required":false'
       - run: ./scripts/backup.sh --retention-days 30
       - run: |
           git checkout "$GITHUB_SHA"
