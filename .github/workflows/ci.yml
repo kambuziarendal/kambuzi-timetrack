@@ -82,10 +82,10 @@ jobs:
         with:
           node-version: 22.23.2
       - run: npm ci
-      - run: ./scripts/build-release.sh release-a
-      - run: ./scripts/build-release.sh release-b
       - run: |
           for file in release-a/*; do
+            cmp "$file" "release-b/$(basename "$file")"
+          done
             cmp "" "release-b/1000 27 100 1000basename "")"
           done
       - uses: actions/upload-artifact@v4
