@@ -8,7 +8,7 @@ archive=${1:-}
 [ -n "$archive" ] && [ -f "$archive" ] || { echo 'Oppgi en eksisterende .dump-fil.' >&2; exit 1; }
 [ -f backups/.kambuzi-timeforing-backups ] || { echo 'Backupkatalogen mangler eierskapsmerke.' >&2; exit 1; }
 case "$(realpath "$archive")" in "$(realpath backups)"/*) ;; *) echo 'Arkivet må ligge i backups/.' >&2; exit 1;; esac
-[ ! -f "$archive.sha256" ] || (cd "$(dirname "$archive")" && sha256sum -c "$(basename "$archive").sha256")
+[ ! -f ".sha256" ] || sha256sum -c ".sha256"
 ./scripts/backup.sh
 compose stop app
 restore_failed=0

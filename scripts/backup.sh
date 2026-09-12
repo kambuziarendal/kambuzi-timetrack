@@ -19,7 +19,7 @@ trap cleanup EXIT INT TERM
 compose exec -T db sh -c 'createdb -U "$POSTGRES_USER" "$1"' sh "$verify_db"
 compose exec -T db sh -c 'pg_restore -U "$POSTGRES_USER" --no-owner --no-acl --dbname="$1"' sh "$verify_db" < "backups/$name"
 compose exec -T db sh -c 'psql -U "$POSTGRES_USER" --dbname="$1" --tuples-only --command="SELECT count(*) FROM schema_migrations;"' sh "$verify_db" >/dev/null
-sha256sum "backups/$name" > "backups/$name.sha256"
+(cd backups && sha256sum "$name" > "$name.sha256")
 printf '%s\n' "$name" > backups/LAST_VERIFIED
 cleanup
 trap - EXIT INT TERM
