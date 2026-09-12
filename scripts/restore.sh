@@ -2,9 +2,6 @@
 set -eu
 cd "$(dirname "$0")/.."
 [ -f .env ] || { echo '.env mangler.' >&2; exit 1; }
-set -a
-. ./.env
-set +a
 [ "${CONFIRM_RESTORE:-}" = 'YES' ] || { echo 'Sett CONFIRM_RESTORE=YES for √• bekrefte gjenoppretting.' >&2; exit 1; }
 archive=${1:-}
 [ -n "$archive" ] && [ -f "$archive" ] || { echo 'Oppgi en eksisterende .dump-fil.' >&2; exit 1; }
@@ -13,9 +10,9 @@ case "$(realpath "$archive")" in "$(realpath backups)"/*) ;; *) echo 'Arkivet m√
 ./scripts/backup.sh
 docker compose stop app
 restore_failed=0
-docker compose run --rm --no-deps app dropdb --if-exists "$POSTGRES_DB" || restore_failed=1
-docker compose run --rm --no-deps app createdb "$POSTGRES_DB" || restore_failed=1
-docker compose run --rm --no-deps app pg_restore --no-owner --no-acl --dbname="$POSTGRES_DB" "/backups/$(basename "$archive")" || restore_failed=1
+docker compose exec -T db sh -c 'dropdb -U "$POSTGRES_USER" --if-exists "$POSTGRES_DB"' || restore_failed=1
+docker compose exec -T db sh -c 'createdb -U "$POSTGRES_USER" "$POSTGRES_DB"' || restore_failed=1
+docker compose exec -T db sh -c 'pg_restore -U "$POSTGRES_USER" --no-owner --no-acl --dbname="$POSTGRES_DB"' < "$archive" || restore_failed=1
 docker compose up -d app
 [ "$restore_failed" -eq 0 ] || { echo 'Restore feilet. Bruk pre-restore-backupen som nettopp ble laget.' >&2; exit 1; }
 attempt=0

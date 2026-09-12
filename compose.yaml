@@ -35,8 +35,6 @@ services:
       SESSION_DAYS: ${SESSION_DAYS:-7}
     ports:
       - "127.0.0.1:${HTTP_PORT:-4080}:4000"
-    volumes:
-      - ./backups:/backups
     healthcheck:
       test:
         [
