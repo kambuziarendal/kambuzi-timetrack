@@ -148,6 +148,33 @@ jobs:
         with:
           name: selfhost-source
           path: release-a/*
+  timetest-image:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - run: |
+          docker buildx build \
+            --platform linux/amd64 \
+            --build-arg VITE_BASE_PATH=/timetest/ \
+            --load \
+            --tag "kambuzi-timeforing:${GITHUB_SHA}-timetest" .
+          docker pull --platform linux/amd64 postgres:17.7-bookworm
+      - run: |
+          mkdir -p timetest-artifact
+          docker save \
+            "kambuzi-timeforing:${GITHUB_SHA}-timetest" \
+            postgres:17.7-bookworm | \
+            gzip -n -1 > "timetest-artifact/kambuzi-timeforing-timetest-${GITHUB_SHA}-amd64.tar.gz"
+          gzip -t "timetest-artifact/kambuzi-timeforing-timetest-${GITHUB_SHA}-amd64.tar.gz"
+          (cd timetest-artifact && sha256sum *.tar.gz > "kambuzi-timeforing-timetest-${GITHUB_SHA}-amd64.tar.gz.sha256")
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: timetest-artifact/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: timetest-image-amd64
+          path: timetest-artifact/*
   offline-installer:
     needs: [container-recovery, release]
     runs-on: ubuntu-24.04
