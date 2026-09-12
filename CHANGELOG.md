@@ -7,6 +7,7 @@
 - lagt til sikker drift i undermappe, inkludert avgrenset API-base og cookie
 - lagt til automatisk kontroll av releasebygg under `/timetest/`
 - gjort checksum og CycloneDX-SBOM reproducerbare mellom byggemiljøer
+- støttet både Docker Compose-plugin og frittstående `docker-compose`
 - erstattet shell-eksponering av generert databasepassord i installasjonsscriptet
 
 ## 1.0.0-beta.1 — 2026-09-12
