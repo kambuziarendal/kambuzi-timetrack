@@ -58,6 +58,41 @@ TLS-sertifikat og nginx-herding må håndteres på serveren. Kontroller etterpå
 curl --fail https://timer.eksempel.no/health/ready
 ```
 
+## Installasjon i undermappe
+
+For en isolert test eller intern installasjon under for eksempel
+`https://eksempel.no/timetest/`, bruk:
+
+```dotenv
+APP_URL=https://eksempel.no/timetest
+VITE_BASE_PATH=/timetest/
+COOKIE_NAME=tt_timetest_session
+COOKIE_PATH=/timetest/
+HTTP_PORT=4080
+SECURE_COOKIES=true
+TRUST_PROXY=1
+```
+
+Bygg appen på nytt etter endring av `VITE_BASE_PATH`. nginx må fjerne
+prefikset når forespørsler sendes til appen:
+
+```nginx
+location = /timetest {
+    return 308 /timetest/;
+}
+
+location /timetest/ {
+    proxy_pass http://127.0.0.1:4080/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+}
+```
+
+Eget `COOKIE_NAME` og `COOKIE_PATH` hindrer at testøkten kolliderer med andre
+apper på samme domene. Bruk alltid avsluttende skråstrek i `VITE_BASE_PATH` og
+`COOKIE_PATH`.
+
 ## Oppdatering
 
 Pakk ut ny release i en ny katalog eller oppdater den eksisterende kildekatalogen. Behold `.env` og `backups/`. Kjør:

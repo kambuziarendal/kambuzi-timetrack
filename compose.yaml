@@ -16,7 +16,10 @@ services:
     security_opt: ["no-new-privileges:true"]
 
   app:
-    build: .
+    build:
+      context: .
+      args:
+        VITE_BASE_PATH: ${VITE_BASE_PATH:-/}
     restart: unless-stopped
     depends_on:
       db: { condition: service_healthy }
@@ -31,6 +34,8 @@ services:
       PGPASSWORD: ${POSTGRES_PASSWORD}
       APP_URL: ${APP_URL:?APP_URL må settes i .env}
       SECURE_COOKIES: ${SECURE_COOKIES:-true}
+      COOKIE_NAME: ${COOKIE_NAME:-tt_session}
+      COOKIE_PATH: ${COOKIE_PATH:-/}
       TRUST_PROXY: ${TRUST_PROXY:-1}
       SESSION_DAYS: ${SESSION_DAYS:-7}
     ports:

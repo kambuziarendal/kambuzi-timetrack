@@ -13,6 +13,7 @@ Et enkelt, gratis og selvhostet system for timeføring i små virksomheter. Én 
 - samme filter brukes for skjerm, CSV og PDF
 - ansatt-, arbeidsrolle- og virksomhetsadministrasjon
 - auditlogg for sikkerhets- og dataendringer
+- lyst og mørkt tema med systemvalg og manuell overstyring
 - komplett dataeksport
 - verifisert PostgreSQL-backup og kontrollert restore
 - administrator-recovery fra serverkonsollen
@@ -36,6 +37,10 @@ Dette er et registrerings- og dokumentasjonsverktøy. Det beregner ikke lønn, s
 6. Åpne adressen og opprett virksomheten og første administrator.
 
 Se [docs/INSTALLASJON.md](docs/INSTALLASJON.md) for komplette eksempler og [docs/DRIFT.md](docs/DRIFT.md) for backup, restore, oppgradering og recovery.
+
+Appen kan også ligge under en egen sti, for eksempel `/timetest/`. Da settes
+`APP_URL`, `VITE_BASE_PATH` og `COOKIE_PATH` som vist i
+[installasjonsveiledningen](docs/INSTALLASJON.md#installasjon-i-undermappe).
 
 ## Sikkerhetsmodell
 
@@ -63,6 +68,12 @@ npm run test:e2e
 
 Backend-tester bruker PGlite i minnet. Produksjon bruker PostgreSQL 17.
 
-## Status og lisens
+## Lisens
 
-Pakken er teknisk klargjort som gratis selvhostet programvare. Før en offentlig GitHub-release må eier velge den endelige friprogramvarelisensen. Se [LICENSE-CHOICE.md](LICENSE-CHOICE.md). Inntil valget er tatt er kildekoden ikke offentlig lisensiert for videredistribusjon.
+Kambuzi Timeføring er fri programvare under
+[GNU Affero General Public License v3.0 eller nyere](LICENSE). Du kan bruke,
+studere, endre og dele programmet etter vilkårene i lisensen. Dersom du tilbyr
+en endret versjon som nettjeneste, må brukerne få tilgang til den tilsvarende
+kildekoden.
+
+Programmet leveres uten garanti. Se [LICENSE](LICENSE) og [NOTICE](NOTICE).

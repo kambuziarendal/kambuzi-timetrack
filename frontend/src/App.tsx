@@ -1,6 +1,58 @@
 import { FormEvent, ReactNode, useEffect, useState } from "react";
 import { api, download, setCsrf } from "./api";
 
+type Theme = "light" | "dark";
+
+const initialTheme = (): Theme =>
+  document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+
+function setDocumentTheme(theme: Theme, persist = false) {
+  document.documentElement.dataset.theme = theme;
+  document
+    .querySelector('meta[name="theme-color"]')
+    ?.setAttribute("content", theme === "dark" ? "#0f1512" : "#17201c");
+  if (persist) {
+    try {
+      window.localStorage.setItem("kambuzi-theme", theme);
+    } catch {
+      // Private browsing or a locked-down browser may block local storage.
+    }
+  }
+}
+
+function ThemeButton({
+  theme,
+  onToggle,
+}: {
+  theme: Theme;
+  onToggle: () => void;
+}) {
+  const dark = theme === "dark";
+  return (
+    <button
+      type="button"
+      className="theme-toggle"
+      onClick={onToggle}
+      aria-label={dark ? "Bruk lyst tema" : "Bruk mørkt tema"}
+      aria-pressed={dark}
+    >
+      <span aria-hidden="true">{dark ? "☀" : "◐"}</span>
+      <span className="theme-copy">{dark ? "Lyst tema" : "Mørkt tema"}</span>
+    </button>
+  );
+}
+
+function LegalNotice() {
+  return (
+    <p className="legal-notice">
+      © 2026 Kambuzi · Fri programvare under AGPL-3.0-or-later · Uten garanti ·{" "}
+      <a href="https://github.com/kambuziarendal/kambuzi-timetrack">
+        Kildekode og lisens
+      </a>
+    </p>
+  );
+}
+
 type User = {
   id: string;
   email: string;
@@ -88,7 +140,15 @@ function Spinner() {
   );
 }
 
-function Setup({ done }: { done: () => void }) {
+function Setup({
+  done,
+  theme,
+  onToggleTheme,
+}: {
+  done: () => void;
+  theme: Theme;
+  onToggleTheme: () => void;
+}) {
   const [error, setError] = useState("");
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -107,6 +167,9 @@ function Setup({ done }: { done: () => void }) {
   return (
     <main className="auth">
       <section className="auth-card">
+        <div className="auth-tools">
+          <ThemeButton theme={theme} onToggle={onToggleTheme} />
+        </div>
         <p className="eyebrow">Førstegangsoppsett</p>
         <h1>Kambuzi Timeføring</h1>
         <p>
@@ -143,11 +206,20 @@ function Setup({ done }: { done: () => void }) {
           {error && <Notice type="error">{error}</Notice>}
           <button className="primary">Fullfør oppsett</button>
         </form>
+        <LegalNotice />
       </section>
     </main>
   );
 }
-function Login({ onLogin }: { onLogin: (u: User) => void }) {
+function Login({
+  onLogin,
+  theme,
+  onToggleTheme,
+}: {
+  onLogin: (u: User) => void;
+  theme: Theme;
+  onToggleTheme: () => void;
+}) {
   const [error, setError] = useState("");
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -167,6 +239,9 @@ function Login({ onLogin }: { onLogin: (u: User) => void }) {
   return (
     <main className="auth">
       <section className="auth-card">
+        <div className="auth-tools">
+          <ThemeButton theme={theme} onToggle={onToggleTheme} />
+        </div>
         <p className="eyebrow">Selvhostet og gratis</p>
         <h1>Kambuzi Timeføring</h1>
         <p>Før timer. Send inn. Godkjenn. Eksporter.</p>
@@ -185,6 +260,7 @@ function Login({ onLogin }: { onLogin: (u: User) => void }) {
           {error && <Notice type="error">{error}</Notice>}
           <button className="primary">Logg inn</button>
         </form>
+        <LegalNotice />
       </section>
     </main>
   );
@@ -196,12 +272,16 @@ function Shell({
   children,
   page,
   setPage,
+  theme,
+  onToggleTheme,
 }: {
   user: User;
   onLogout: () => void;
   children: ReactNode;
   page: string;
   setPage: (p: string) => void;
+  theme: Theme;
+  onToggleTheme: () => void;
 }) {
   const nav =
     user.role === "ADMIN"
@@ -224,8 +304,9 @@ function Shell({
         <button className="brand" onClick={() => setPage("oversikt")}>
           Kambuzi <span>Timeføring</span>
         </button>
-        <div>
+        <div className="header-actions">
           <span className="user-name">{user.firstName}</span>
+          <ThemeButton theme={theme} onToggle={onToggleTheme} />
           <button className="quiet" onClick={onLogout}>
             Logg ut
           </button>
@@ -1180,9 +1261,16 @@ export function App() {
   const [loading, setLoading] = useState(true),
     [setup, setSetup] = useState(false),
     [user, setUser] = useState<User | null>(null),
+    [theme, setTheme] = useState<Theme>(initialTheme),
     [page, setPage] = useState("oversikt"),
     [refresh, setRefresh] = useState(0),
     [users, setUsers] = useState<User[]>([]);
+  useEffect(() => setDocumentTheme(theme), [theme]);
+  const toggleTheme = () => {
+    const next = theme === "dark" ? "light" : "dark";
+    setDocumentTheme(next, true);
+    setTheme(next);
+  };
   useEffect(() => {
     Promise.all([
       api<{ required: boolean }>("/setup/status"),
@@ -1200,8 +1288,18 @@ export function App() {
     if (user?.role === "ADMIN") api<User[]>("/admin/users").then(setUsers);
   }, [user, refresh]);
   if (loading) return <Spinner />;
-  if (setup) return <Setup done={() => setSetup(false)} />;
-  if (!user) return <Login onLogin={setUser} />;
+  if (setup)
+    return (
+      <Setup
+        done={() => setSetup(false)}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
+    );
+  if (!user)
+    return (
+      <Login onLogin={setUser} theme={theme} onToggleTheme={toggleTheme} />
+    );
   const logout = async () => {
     await api("/auth/logout", { method: "POST" });
     setUser(null);
@@ -1233,7 +1331,14 @@ export function App() {
   if (page === "rapporter" && user.role === "ADMIN") content = <Reports />;
   if (page === "oppsett" && user.role === "ADMIN") content = <Settings />;
   return (
-    <Shell user={user} onLogout={logout} page={page} setPage={setPage}>
+    <Shell
+      user={user}
+      onLogout={logout}
+      page={page}
+      setPage={setPage}
+      theme={theme}
+      onToggleTheme={toggleTheme}
+    >
       {user.mustChangePassword && (
         <PasswordBanner
           done={() => setUser({ ...user, mustChangePassword: false })}
@@ -1241,7 +1346,7 @@ export function App() {
       )}{" "}
       {content}
       <footer>
-        <p>Kambuzi Timeføring · Selvhostet · Ingen telemetri</p>
+        <LegalNotice />
       </footer>
     </Shell>
   );

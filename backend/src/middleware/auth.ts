@@ -36,17 +36,17 @@ export function tokenHash(token: string) {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 export function sessionCookie(token: string, maxAgeSeconds: number) {
-  return `tt_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAgeSeconds}${env.SECURE_COOKIES ? "; Secure" : ""}`;
+  return `${env.COOKIE_NAME}=${encodeURIComponent(token)}; Path=${env.COOKIE_PATH}; HttpOnly; SameSite=Strict; Max-Age=${maxAgeSeconds}${env.SECURE_COOKIES ? "; Secure" : ""}`;
 }
 export function clearSessionCookie() {
-  return `tt_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${env.SECURE_COOKIES ? "; Secure" : ""}`;
+  return `${env.COOKIE_NAME}=; Path=${env.COOKIE_PATH}; HttpOnly; SameSite=Strict; Max-Age=0${env.SECURE_COOKIES ? "; Secure" : ""}`;
 }
 export async function optionalAuth(
   req: Request,
   _res: Response,
   next: NextFunction,
 ) {
-  const token = parseCookies(req.headers.cookie).tt_session;
+  const token = parseCookies(req.headers.cookie)[env.COOKIE_NAME];
   if (!token) return next();
   const result = await pool.query<AppUser & { sessionId: string }>(
     `

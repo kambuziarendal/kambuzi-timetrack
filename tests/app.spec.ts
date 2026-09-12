@@ -133,3 +133,54 @@ test("innlogging har ingen horisontal overflyt eller tilgjengelighetsbrudd", asy
       .evaluate((el) => el.scrollWidth <= el.clientWidth + 1),
   ).toBe(true);
 });
+
+test("mørkt tema følger systemet og lagrer manuelt valg", async ({
+  page,
+}, testInfo) => {
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto("/");
+  if (
+    await page
+      .getByRole("button", { name: "Logg ut" })
+      .isVisible()
+      .catch(() => false)
+  )
+    await page.getByRole("button", { name: "Logg ut" }).click();
+
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(
+    page.getByRole("button", { name: "Bruk lyst tema" }),
+  ).toBeVisible();
+  expect(
+    await page
+      .locator("body")
+      .evaluate((el) => getComputedStyle(el).backgroundColor),
+  ).toBe("rgb(15, 21, 18)");
+
+  const accessibility = await new AxeBuilder({ page }).analyze();
+  expect(accessibility.violations).toEqual([]);
+  expect(
+    await page
+      .locator("body")
+      .evaluate((el) => el.scrollWidth <= el.clientWidth + 1),
+  ).toBe(true);
+
+  await page.getByRole("button", { name: "Bruk lyst tema" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  expect(await page.evaluate(() => localStorage.getItem("kambuzi-theme"))).toBe(
+    "light",
+  );
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  expect(
+    await page
+      .locator("body")
+      .evaluate((el) => getComputedStyle(el).backgroundColor),
+  ).toBe("rgb(244, 241, 234)");
+
+  await page.getByRole("button", { name: "Bruk mørkt tema" }).click();
+  await page.screenshot({
+    path: `artifacts/${testInfo.project.name}-dark-login.png`,
+    fullPage: true,
+  });
+});

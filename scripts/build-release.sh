@@ -8,6 +8,8 @@ output=${1:-dist-release}
 mkdir -p "$output"
 archive="$output/kambuzi-timeforing-$version-$commit.tar.gz"
 git archive --format=tar --prefix="kambuzi-timeforing-$version/" HEAD | gzip -n -9 > "$archive"
-sha256sum "$archive" > "$archive.sha256"
-npm sbom --sbom-format cyclonedx > "$output/kambuzi-timeforing-$version-$commit.sbom.json"
+(cd "$output" && sha256sum "$(basename "$archive")" > "$(basename "$archive").sha256")
+sbom="$output/kambuzi-timeforing-$version-$commit.sbom.json"
+npm sbom --sbom-format cyclonedx > "$sbom"
+node scripts/normalize-sbom.mjs "$sbom"
 echo "$archive"
