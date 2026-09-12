@@ -88,12 +88,29 @@ test("førstegangsoppsett, admin, ansatt og låst lønnsgrunnlag", async ({
 
   await page.getByRole("button", { name: "Logg ut" }).click();
   await logIn(page, employeeEmail, employeePassword);
+  await page.getByRole("button", { name: "Bytt nå" }).click();
+  await page.getByPlaceholder("Nåværende passord").fill(employeePassword);
+  await page
+    .getByPlaceholder("Nytt passord, minst 12 tegn")
+    .fill("Ansattpassord-1234");
+  await page.getByRole("button", { name: "Oppdater" }).click();
+  await expect(page.getByRole("button", { name: "Bytt nå" })).not.toBeVisible();
   await page.getByRole("button", { name: "Før dagens timer" }).click();
   await page.getByLabel("Fra").fill("09:00");
   await page.getByLabel("Til").fill("15:00");
   await page.getByLabel("Pause (min)").fill("30");
+  if (testInfo.project.name === "mobile") {
+    await page.screenshot({
+      path: "artifacts/mobile-employee-entry.png",
+    });
+  }
   await page.getByRole("button", { name: "Lagre som utkast" }).click();
   await expect(page.getByText("5,50 t")).toBeVisible();
+  if (testInfo.project.name === "mobile") {
+    await page.screenshot({
+      path: "artifacts/mobile-employee-list.png",
+    });
+  }
   await page.getByRole("button", { name: "Slett", exact: true }).click();
   await expect(page.getByText("Slette dette utkastet?")).toBeVisible();
   await page.getByRole("button", { name: "Avbryt" }).click();
