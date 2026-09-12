@@ -56,14 +56,19 @@ test("førstegangsoppsett, admin, ansatt og låst lønnsgrunnlag", async ({
     .getByLabel("Arbeidsrolle")
     .last()
     .selectOption({ label: "Kjøkken" });
-  await page
-    .getByRole("button", { name: "Opprett og lag startpassord" })
-    .click();
+  const [createEmployeeResponse] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/admin/users") &&
+        response.request().method() === "POST",
+    ),
+    page.getByRole("button", { name: "Opprett og lag startpassord" }).click(),
+  ]);
+  expect(createEmployeeResponse.ok()).toBe(true);
+  const createdEmployee = await createEmployeeResponse.json();
   const passwordNotice = page.getByText(/Startpassord \(vises bare nå\):/);
   await expect(passwordNotice).toBeVisible();
-  const employeePassword = (await passwordNotice.textContent())!
-    .split(": ")
-    .at(-1)!;
+  const employeePassword = createdEmployee.temporaryPassword as string;
 
   await page.getByRole("button", { name: "Logg ut" }).click();
   await page.getByLabel("E-post").fill(employeeEmail);
