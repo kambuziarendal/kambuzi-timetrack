@@ -1,34 +1,82 @@
 # Drift, backup og recovery
 
-## Helse
+## Status
 
 ```bash
-docker compose ps
-curl --fail http://127.0.0.1:4080/health/live
-curl --fail http://127.0.0.1:4080/health/ready
+./scripts/status.sh
 ```
 
-`ready` er først grønn når databasekontakt og minst én migrasjon er verifisert.
+Scriptet viser Compose-status, `live`, `ready` og om førstegangsoppsett fortsatt er åpent.
 
-## Backup
+## Daglig backup
+
+Manuell backup:
 
 ```bash
 ./scripts/backup.sh
 ```
 
-Backupen lages med `pg_dump` i PostgreSQL custom-format. Scriptet validerer arkivet, gjenoppretter det i en midlertidig database og kontrollerer migrasjonstabellen før det skriver SHA-256-fil og rapporterer suksess.
+Automatisk daglig backup kl. 03:17:
 
-Kopier ferdige `.dump`- og `.sha256`-filer kryptert til en annen fysisk maskin eller skytjeneste. En backup på samme server beskytter ikke mot diskhavari, tyveri eller ransomware. Scriptet sletter aldri eldre backup automatisk.
+```bash
+./scripts/install-backup-cron.sh
+```
+
+Backup lages med `pg_dump` i custom-format, checksum skrives, og arkivet gjenopprettes i en isolert midlertidig PostgreSQL-database før suksess. Med retention:
+
+```bash
+./scripts/backup.sh --retention-days 30
+```
+
+Retention sletter aldri backupen som står i `backups/LAST_VERIFIED`.
+
+## Kryptert off-server-backup med restic/S3
+
+Installer restic på serveren og sett opp repository hos en leverandør du stoler på. Ikke legg hemmeligheter i shellhistorikk eller supportlogger. Eksempel på daglig kommando når restic-miljøet allerede er sikkert satt opp:
+
+```bash
+restic backup backups --tag kambuzi-timeforing
+restic forget --keep-daily 14 --keep-weekly 8 --keep-monthly 12 --prune
+restic check --read-data-subset=1/20
+```
+
+Test restore på separat maskin minst månedlig.
 
 ## Restore
-
-Restore erstatter aktiv database og krever eksplisitt bekreftelse:
 
 ```bash
 CONFIRM_RESTORE=YES ./scripts/restore.sh backups/timeforing-ÅÅÅÅMMDDTHHMMSSZ.dump
 ```
 
-Scriptet tar først en ny, verifisert pre-restore-backup, stopper appen, gjenoppretter databasen og krever grønn readiness. Ved feil beholdes pre-restore-backupen for manuell recovery.
+Scriptet kontrollerer checksum når `.sha256` finnes, tar først ny verifisert pre-restore-backup, stopper appen, gjenoppretter databasen og krever grønn readiness.
+
+## Oppgradering
+
+1. Last ned release og riktig offlineimage.
+2. Kontroller SHA-256/signatur.
+3. Last image med `./scripts/load-offline-images.sh`.
+4. Kjør:
+
+```bash
+./scripts/upgrade.sh <eksakt-release-commit-sha> <forventet-image-sha256>
+```
+
+Oppgraderingen nekter `latest`, tar restore-verifisert backup, prøver migrasjon på databasekopi, bytter `IMAGE_TAG`, aktiverer, krever readiness og kjører status. Ved aktiverings- eller readinessfeil forsøker scriptet automatisk rollback til forrige image-tag og pre-upgrade-backup.
+
+## Manuell rollback
+
+```bash
+./scripts/rollback.sh backups/timeforing-ÅÅÅÅMMDDTHHMMSSZ.dump <forrige-image-tag>
+```
+
+## Flytting til ny server
+
+1. Installer samme release eller nyere på ny server uten offentlig proxy.
+2. Kopier ønsket `.dump` og `.sha256` til `backups/`.
+3. Last samme app- og PostgreSQL-images.
+4. Kjør restore.
+5. Kontroller `./scripts/status.sh`.
+6. Flytt DNS/proxy først etter innlogging og rapportvisning er testet.
 
 ## Administrator-recovery
 
@@ -38,9 +86,9 @@ Kjør bare fra serverkonsollen:
 docker compose exec app node backend/dist/resetAdmin.js admin@eksempel.no
 ```
 
-Kommandoen lager et tilfeldig midlertidig passord, aktiverer kontoen som administrator og tilbakekaller eksisterende økter. Passordet vises én gang i terminalen og må byttes ved neste innlogging.
+Midlertidig passord vises én gang og må byttes ved neste innlogging.
 
-## Logg og feilsøking
+## Feilsøking
 
 ```bash
 docker compose logs --tail=200 app
@@ -48,10 +96,3 @@ docker compose logs --tail=200 db
 ```
 
 Ikke legg `.env`, databasepassord, backupfiler eller midlertidige passord i supportsaker.
-
-## Anbefalt kontrollplan
-
-- daglig: automatisert `backup.sh`, kopiert ut av serveren
-- ukentlig: kontroller siste SHA-256 og ledig disk
-- månedlig: restore-prøve på separat maskin
-- ved hver oppgradering: les release-notat, kjør `upgrade.sh`, verifiser login, registrering, rapport og backup

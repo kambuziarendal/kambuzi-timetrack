@@ -28,8 +28,18 @@ jobs:
           if-no-files-found: ignore
   container-recovery:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+          - arch: arm64
+            platform: linux/arm64
     steps:
       - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
       - run: |
           cp .env.example .env
           sed -i 's/BYTTES_AUTOMATISK_AV_INSTALLASJONEN/ci-only-database-password/' .env
@@ -39,25 +49,26 @@ jobs:
           mkdir -p backups
           touch backups/.kambuzi-timeforing-backups
       - run: docker compose config --quiet
-      - run: docker compose build
-      - run: docker compose up -d --wait
-      - run: ./scripts/backup.sh
+      - run: docker buildx build --platform '${{ matrix.platform }}' --load --tag "kambuzi-timeforing:${GITHUB_SHA}" .
+      - run: docker pull --platform '${{ matrix.platform }}' postgres:17.7-bookworm
+      - run: docker compose up -d --no-build --wait
+      - run: ./scripts/backup.sh --retention-days 30
       - run: |
           archive=$(find backups -maxdepth 1 -name '*.dump' -type f | head -n 1)
           CONFIRM_RESTORE=YES ./scripts/restore.sh "$archive"
-      - run: curl --fail http://127.0.0.1:4080/health/ready
+      - run: ./scripts/status.sh
       - run: |
           mkdir -p image-artifact
           image="kambuzi-timeforing:${GITHUB_SHA}"
           database_image="postgres:17.7-bookworm"
           docker image inspect "$image" >/dev/null
           docker image inspect "$database_image" >/dev/null
-          docker save "$image" "$database_image" | gzip -n -9 > "image-artifact/kambuzi-timeforing-images-${GITHUB_SHA}.tar.gz"
-          gzip -t "image-artifact/kambuzi-timeforing-images-${GITHUB_SHA}.tar.gz"
-          (cd image-artifact && sha256sum *.tar.gz > "kambuzi-timeforing-images-${GITHUB_SHA}.tar.gz.sha256")
+          docker save "$image" "$database_image" | gzip -n -9 > "image-artifact/kambuzi-timeforing-images-${GITHUB_SHA}-${{ matrix.arch }}.tar.gz"
+          gzip -t "image-artifact/kambuzi-timeforing-images-${GITHUB_SHA}-${{ matrix.arch }}.tar.gz"
+          (cd image-artifact && sha256sum *.tar.gz > "kambuzi-timeforing-images-${GITHUB_SHA}-${{ matrix.arch }}.tar.gz.sha256")
       - uses: actions/upload-artifact@v4
         with:
-          name: selfhost-image
+          name: selfhost-image-${{ matrix.arch }}
           path: image-artifact/*
       - if: always()
         run: docker compose logs --no-color
@@ -78,5 +89,5 @@ jobs:
       - run: cmp release-a/*.sbom.json release-b/*.sbom.json
       - uses: actions/upload-artifact@v4
         with:
-          name: selfhost-package
+          name: selfhost-source
           path: release-a/*

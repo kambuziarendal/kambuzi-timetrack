@@ -1,35 +1,87 @@
 # Installasjon
 
-## 1. Forbered serveren
+Denne veiledningen er laget for Ubuntu 24.04 og Debian 12 på `amd64` eller `arm64`. Normal installasjon bruker ferdigbygde releaseimages og krever ikke Git, Node.js, Python, Buildx eller lokalt bygg.
 
-Installer Docker Engine med Compose v2. Opprett en egen katalog og pakk ut Kambuzi Timeføring der. Ikke kjør appen direkte på internett uten HTTPS-proxy.
+## 1. Før du starter
 
-## 2. Opprett konfigurasjon
+Du trenger:
+
+- Docker Engine med Docker Compose v2
+- minst 1 GB RAM
+- minst 2 GB ledig disk pluss plass til egne data/backuper
+- et domene eller intern adresse du kontrollerer
+- HTTPS foran appen før den brukes av ansatte
+
+Anbefalt modell er eget subdomene, for eksempel `timer.eksempel.no`, med Caddy foran appen. nginx-undermappe fungerer, men er mer følsomt for feil i path og cookies og er derfor avansert.
+
+## 2. Last ned og kontroller release
+
+Last ned fra samme GitHub-release:
+
+- `kambuzi-timeforing-<versjon>-<commit>-source.tar.gz`
+- tilhørende `.sha256`
+- `kambuzi-timeforing-images-<commit>-amd64.tar.gz` eller `...-arm64.tar.gz`
+- tilhørende `.sha256`
+- SBOM og release-manifest
+
+Kontroller filene:
+
+```bash
+sha256sum -c kambuzi-timeforing-*.sha256
+sha256sum -c kambuzi-timeforing-images-*.sha256
+```
+
+Hvis releasechecksums er signert, kontroller signaturen før installasjon.
+
+## 3. Pakk ut og last images
+
+```bash
+tar -xzf kambuzi-timeforing-1.0.0-beta.3-<commit>-source.tar.gz
+cd kambuzi-timeforing-1.0.0-beta.3
+./scripts/load-offline-images.sh ../kambuzi-timeforing-images-<commit>-amd64.tar.gz
+```
+
+Bytt til `arm64`-filen på ARM-server.
+
+## 4. Opprett konfigurasjon
 
 ```bash
 ./scripts/install.sh
 ```
 
-Første kjøring oppretter `.env` med et tilfeldig databasepassord og avslutter. Rediger filen:
+Første kjøring oppretter `.env` og `backups/`, setter sikre filrettigheter og stopper. Rediger `.env`:
 
 ```dotenv
+IMAGE_TAG=<eksakt-release-commit-sha>
 APP_URL=https://timer.eksempel.no
 HTTP_PORT=4080
 SECURE_COOKIES=true
 TRUST_PROXY=1
 ```
 
-`APP_URL` må være den faktiske HTTPS-adressen. Behold `SECURE_COOKIES=true` i normal drift. `TRUST_PROXY=1` passer når nøyaktig én reverse proxy står foran appen.
+`IMAGE_TAG` skal være eksakt commit-SHA fra release-manifestet. Ikke bruk `latest`.
 
-## 3. Start
+## 5. Start internt og opprett første administrator
 
 ```bash
 ./scripts/install.sh
 ```
 
-Tjenesten lytter bare på `127.0.0.1:4080`. Åpne den gjennom reverse proxy og fullfør førstegangsoppsettet i nettleseren.
+Appen lytter bare på `127.0.0.1:4080`. Ikke åpne reverse proxy offentlig før første administrator er opprettet. Bruk lokal nettleser på serveren eller SSH-tunnel:
 
-## 4. Caddy-eksempel
+```bash
+ssh -L 4080:127.0.0.1:4080 server
+```
+
+Åpne `http://127.0.0.1:4080`, opprett virksomheten og første administrator, og kontroller deretter:
+
+```bash
+./scripts/status.sh
+```
+
+`setup_required` skal være `false` før offentlig eksponering.
+
+## 6. Caddy med eget domene
 
 ```caddyfile
 timer.eksempel.no {
@@ -37,31 +89,15 @@ timer.eksempel.no {
 }
 ```
 
-## 5. nginx-eksempel
-
-```nginx
-server {
-  listen 443 ssl http2;
-  server_name timer.eksempel.no;
-  location / {
-    proxy_pass http://127.0.0.1:4080;
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-  }
-}
-```
-
-TLS-sertifikat og nginx-herding må håndteres på serveren. Kontroller etterpå:
+Kontroller etterpå:
 
 ```bash
 curl --fail https://timer.eksempel.no/health/ready
 ```
 
-## Installasjon i undermappe
+## 7. Avansert: nginx i undermappe
 
-For en isolert test eller intern installasjon under for eksempel
-`https://eksempel.no/timetest/`, bruk:
+For `https://eksempel.no/timetest/`:
 
 ```dotenv
 APP_URL=https://eksempel.no/timetest
@@ -73,8 +109,7 @@ SECURE_COOKIES=true
 TRUST_PROXY=1
 ```
 
-Bygg appen på nytt etter endring av `VITE_BASE_PATH`. nginx må fjerne
-prefikset når forespørsler sendes til appen:
+Frontend-basepath bygges inn i app-imaget. Bruk derfor bare releaseimage som er bygget for samme basepath, eller bygg eksplisitt i eget utviklingsløp. nginx må strippe prefikset:
 
 ```nginx
 location = /timetest {
@@ -89,16 +124,4 @@ location /timetest/ {
 }
 ```
 
-Eget `COOKIE_NAME` og `COOKIE_PATH` hindrer at testøkten kolliderer med andre
-apper på samme domene. Bruk alltid avsluttende skråstrek i `VITE_BASE_PATH` og
-`COOKIE_PATH`.
-
-## Oppdatering
-
-Pakk ut ny release i en ny katalog eller oppdater den eksisterende kildekatalogen. Behold `.env` og `backups/`. Kjør:
-
-```bash
-./scripts/upgrade.sh
-```
-
-Scriptet tar og restore-verifiserer backup før bygg og oppstart. Databasemigrasjoner er versjonerte og kjøres i transaksjon ved appstart.
+Bruk alltid avsluttende skråstrek i `VITE_BASE_PATH` og `COOKIE_PATH`.

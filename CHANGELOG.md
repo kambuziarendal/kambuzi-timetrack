@@ -1,5 +1,16 @@
 # Endringslogg
 
+## 1.0.0-beta.3 — 2026-09-12
+
+- standardinstallasjon bruker ferdigbygde releaseimages og nekter lokalt bygg uten eksplisitt utviklerflagg
+- lagt til operatørkommandoer for status, offline image-load, daglig backup-cron, upgrade og rollback
+- backup støtter retention uten å slette siste verifiserte backup
+- restore kontrollerer checksum når den finnes og bruker no-build ved restart
+- oppgradering krever eksakt image-tag, prøver migrasjon på databasekopi og ruller tilbake ved readinessfeil
+- CI bygger og tester offline imagepakker for amd64 og arm64 med app + postgres:17.7-bookworm
+- dokumentert signering, 10-15 minutters installasjon, Caddy, avansert nginx-undermappe, flytting, recovery og restic/S3-off-server-backup
+
+
 ## 1.0.0-beta.2 — 2026-09-12
 
 - lisensiert som fri programvare under AGPL-3.0-or-later

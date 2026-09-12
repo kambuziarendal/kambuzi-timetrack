@@ -1,11 +1,11 @@
 # Kambuzi Timeføring
 
-Et enkelt, gratis og selvhostet system for timeføring i små virksomheter. Én installasjon tilhører én virksomhet. Ingen telemetri, reklame eller skytjeneste fra Kambuzi er nødvendig.
+Gratis selvhostet timeføring for små virksomheter. Én installasjon tilhører én virksomhet. Ingen telemetri, reklame eller skytjeneste fra Kambuzi er nødvendig.
 
 ## Dette får du
 
 - ansatte fører dato, start, slutt, pause og notat fra mobil eller PC
-- vakt over midnatt håndteres automatisk
+- vakter over midnatt håndteres automatisk
 - utkast kan redigeres, slettes og sendes inn
 - leder kan godkjenne, sende tilbake og låse perioder
 - lønnsbehandlede registreringer kan merkes og spores
@@ -18,62 +18,36 @@ Et enkelt, gratis og selvhostet system for timeføring i små virksomheter. Én 
 - verifisert PostgreSQL-backup og kontrollert restore
 - administrator-recovery fra serverkonsollen
 
-Dette er et registrerings- og dokumentasjonsverktøy. Det beregner ikke lønn, skatt eller juridisk etterlevelse og erstatter ikke regnskapsfører eller arbeidsrettslig vurdering.
+Dette er et registrerings- og dokumentasjonsverktøy. Det beregner ikke lønn, skatt eller juridisk etterlevelse.
 
-## Krav
+## Installer fra release
 
-- Linux-server eller NAS med Docker Engine og Docker Compose v2
-- en HTTPS-reverse proxy, for eksempel Caddy, nginx eller Traefik
-- minst 1 GB RAM og ca. 2 GB ledig disk i tillegg til egne data/backuper
-- en offentlig eller intern adresse du kontrollerer
+Standardinstallasjon krever Docker Engine og Docker Compose v2 på Ubuntu 24.04 eller Debian 12. Den krever ikke Git, Node.js, Python, Buildx eller lokalt bygg.
 
-## Installer
+1. Last ned kildepakken, checksumfilen og riktig offlineimage for `amd64` eller `arm64` fra samme release.
+2. Kontroller SHA-256 mot releasechecksummene.
+3. Pakk ut kildepakken og gå inn i mappen.
+4. Kjør `./scripts/load-offline-images.sh ../kambuzi-timeforing-images-<sha>-<arch>.tar.gz`.
+5. Kjør `./scripts/install.sh`. Første kjøring lager `.env` og stopper.
+6. Sett `APP_URL`, `IMAGE_TAG=<release-commit-sha>` og eventuelt `HTTP_PORT` i `.env`.
+7. Kjør `./scripts/install.sh` igjen.
+8. Opprett første administrator via lokal tilgang før reverse proxy åpnes offentlig.
+9. Legg Caddy eller annen HTTPS-proxy foran `127.0.0.1:4080`.
 
-1. Pakk ut releasen og gå inn i mappen.
-2. Kjør `./scripts/install.sh`.
-3. Første kjøring oppretter `.env` og stopper. Endre minst `APP_URL`.
-4. Kjør `./scripts/install.sh` på nytt.
-5. Legg HTTPS-proxy foran `127.0.0.1:4080`.
-6. Åpne adressen og opprett virksomheten og første administrator.
+Se [docs/INSTALLASJON.md](docs/INSTALLASJON.md) for 10-15 minutters installasjon, domenemodell og avansert nginx-undermappe. Se [docs/DRIFT.md](docs/DRIFT.md) for status, backup, restore, oppgradering, rollback, flytting og recovery.
 
-Se [docs/INSTALLASJON.md](docs/INSTALLASJON.md) for komplette eksempler og [docs/DRIFT.md](docs/DRIFT.md) for backup, restore, oppgradering og recovery.
+## Releaseinnhold
 
-Appen kan også ligge under en egen sti, for eksempel `/timetest/`. Da settes
-`APP_URL`, `VITE_BASE_PATH` og `COOKIE_PATH` som vist i
-[installasjonsveiledningen](docs/INSTALLASJON.md#installasjon-i-undermappe).
+Hver offentlig beta.3-release skal ha:
 
-## Sikkerhetsmodell
+- kildearkiv fra eksakt tag/commit
+- SHA-256 for kildearkiv, SBOM, manifest og imagearkiver
+- CycloneDX-SBOM
+- ferdigbygde låste `linux/amd64`- og `linux/arm64`-imagearkiver med app + `postgres:17.7-bookworm`
+- signerte checksums eller signert releaseattest med publisert nøkkel/fingerprint
 
-- én virksomhet per installasjon; ingen tenantvelger eller offentlig registrering etter oppsett
-- opaque, hash-lagrede økter i `HttpOnly; SameSite=Strict`-cookie
-- CSRF-verifisering på alle autentiserte skrivekall
-- aktive brukere og roller kontrolleres på hvert kall
-- passord hashes med bcrypt, og startpassord vises bare én gang
-- deaktivering og rolleendring tilbakekaller aktive økter
-- siste aktive administrator kan ikke deaktiveres
-- persondata og passordhash eksponeres aldri av bruker-API-et
-- appcontaineren er read-only og databasen eksponeres ikke på hostport
-
-Se [SECURITY.md](SECURITY.md) for rapportering og driftsansvar.
-
-## Utvikling
-
-Krever Node.js 22.
-
-```bash
-npm ci
-npm run check
-npm run test:e2e
-```
-
-Backend-tester bruker PGlite i minnet. Produksjon bruker PostgreSQL 17.
+Ingen installasjonssteg bruker `latest`.
 
 ## Lisens
 
-Kambuzi Timeføring er fri programvare under
-[GNU Affero General Public License v3.0 eller nyere](LICENSE). Du kan bruke,
-studere, endre og dele programmet etter vilkårene i lisensen. Dersom du tilbyr
-en endret versjon som nettjeneste, må brukerne få tilgang til den tilsvarende
-kildekoden.
-
-Programmet leveres uten garanti. Se [LICENSE](LICENSE) og [NOTICE](NOTICE).
+Kambuzi Timeføring er fri programvare under [GNU Affero General Public License v3.0 eller nyere](LICENSE). Programmet leveres uten garanti. Se [NOTICE](NOTICE).
