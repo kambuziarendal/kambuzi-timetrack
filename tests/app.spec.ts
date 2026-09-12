@@ -4,6 +4,25 @@ import { expect, test } from "@playwright/test";
 const adminEmail = "admin@example.test";
 const adminPassword = "Testpassord-1234";
 
+async function logIn(
+  page: import("@playwright/test").Page,
+  email: string,
+  password: string,
+) {
+  await expect(page.getByRole("button", { name: "Logg inn" })).toBeVisible();
+  await page.getByLabel("E-post").fill(email);
+  await page.getByLabel("Passord").fill(password);
+  const [loginResponse] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/auth/login") &&
+        response.request().method() === "POST",
+    ),
+    page.getByRole("button", { name: "Logg inn" }).click(),
+  ]);
+  expect(loginResponse.ok()).toBe(true);
+}
+
 test.describe.configure({ mode: "serial" });
 
 test("førstegangsoppsett, admin, ansatt og låst lønnsgrunnlag", async ({
@@ -26,10 +45,7 @@ test("førstegangsoppsett, admin, ansatt og låst lønnsgrunnlag", async ({
     await page.getByLabel("Passord").fill(adminPassword);
     await page.getByRole("button", { name: "Fullfør oppsett" }).click();
   }
-  await expect(page.getByRole("button", { name: "Logg inn" })).toBeVisible();
-  await page.getByLabel("E-post").fill(adminEmail);
-  await page.getByLabel("Passord").fill(adminPassword);
-  await page.getByRole("button", { name: "Logg inn" }).click();
+  await logIn(page, adminEmail, adminPassword);
   await expect(
     page.getByRole("heading", { name: "Det som trenger oppfølging" }),
   ).toBeVisible();
@@ -71,9 +87,7 @@ test("førstegangsoppsett, admin, ansatt og låst lønnsgrunnlag", async ({
   const employeePassword = createdEmployee.temporaryPassword as string;
 
   await page.getByRole("button", { name: "Logg ut" }).click();
-  await page.getByLabel("E-post").fill(employeeEmail);
-  await page.getByLabel("Passord").fill(employeePassword);
-  await page.getByRole("button", { name: "Logg inn" }).click();
+  await logIn(page, employeeEmail, employeePassword);
   await page.getByRole("button", { name: "Før dagens timer" }).click();
   await page.getByLabel("Fra").fill("09:00");
   await page.getByLabel("Til").fill("15:00");
@@ -84,9 +98,7 @@ test("førstegangsoppsett, admin, ansatt og låst lønnsgrunnlag", async ({
   await expect(page.getByText("Sendt inn")).toBeVisible();
 
   await page.getByRole("button", { name: "Logg ut" }).click();
-  await page.getByLabel("E-post").fill(adminEmail);
-  await page.getByLabel("Passord").fill(adminPassword);
-  await page.getByRole("button", { name: "Logg inn" }).click();
+  await logIn(page, adminEmail, adminPassword);
   await page.getByRole("button", { name: "Timer" }).click();
   await page.getByRole("button", { name: "Godkjenn" }).click();
   await expect(page.getByText("Godkjent")).toBeVisible();
