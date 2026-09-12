@@ -6,7 +6,7 @@
 - lagt til lyst og mørkt tema med systemvalg og lagret manuell overstyring
 - lagt til sikker drift i undermappe, inkludert avgrenset API-base og cookie
 - lagt til automatisk kontroll av releasebygg under `/timetest/`
-- gjort checksum og CycloneDX-SBOM reproducerbare mellom releasebygg
+- gjort checksum og CycloneDX-SBOM reproducerbare mellom byggemiljøer
 - erstattet shell-eksponering av generert databasepassord i installasjonsscriptet
 
 ## 1.0.0-beta.1 — 2026-09-12
