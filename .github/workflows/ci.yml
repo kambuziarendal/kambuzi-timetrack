@@ -6,7 +6,7 @@ permissions:
   contents: read
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -27,7 +27,7 @@ jobs:
           path: artifacts
           if-no-files-found: ignore
   container-recovery:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -72,8 +72,38 @@ jobs:
           path: image-artifact/*
       - if: always()
         run: docker compose logs --no-color
+  upgrade-from-beta2:
+    runs-on: ubuntu-24.04
+    env:
+      BETA2_SHA: 321dbedf7f79f9d70d6c59fa8fda536ef02550bd
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: docker/setup-buildx-action@v3
+      - run: docker pull --platform linux/amd64 postgres:17.7-bookworm
+      - run: |
+          git checkout "$BETA2_SHA"
+          cp .env.example .env
+          sed -i 's/BYTTES_AUTOMATISK_AV_INSTALLASJONEN/ci-only-database-password/' .env
+          sed -i 's#https://timer.eksempel.no#http://127.0.0.1:4080#' .env
+          sed -i 's/SECURE_COOKIES=true/SECURE_COOKIES=false/' .env
+          sed -i "s/IMAGE_TAG=local/IMAGE_TAG=${BETA2_SHA}/" .env
+          mkdir -p backups
+          touch backups/.kambuzi-timeforing-backups
+      - run: docker buildx build --platform linux/amd64 --load --tag "kambuzi-timeforing:${BETA2_SHA}" .
+      - run: docker compose up -d --no-build --wait
+      - run: ./scripts/backup.sh --retention-days 30
+      - run: |
+          git checkout "$GITHUB_SHA"
+          sed -i "s/IMAGE_TAG=${BETA2_SHA}/IMAGE_TAG=${GITHUB_SHA}/" .env
+          docker buildx build --platform linux/amd64 --load --tag "kambuzi-timeforing:${GITHUB_SHA}" .
+      - run: ./scripts/upgrade.sh "$GITHUB_SHA"
+      - run: ./scripts/status.sh
+      - if: always()
+        run: docker compose logs --no-color
   release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
