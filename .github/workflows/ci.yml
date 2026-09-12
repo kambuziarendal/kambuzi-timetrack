@@ -4,6 +4,8 @@ on:
   pull_request:
 permissions:
   contents: read
+  id-token: write
+  attestations: write
 jobs:
   test:
     runs-on: ubuntu-24.04
@@ -66,6 +68,9 @@ jobs:
           docker save "$image" "$database_image" | gzip -n -1 > "image-artifact/kambuzi-timeforing-images-${GITHUB_SHA}-${{ matrix.arch }}.tar.gz"
           gzip -t "image-artifact/kambuzi-timeforing-images-${GITHUB_SHA}-${{ matrix.arch }}.tar.gz"
           (cd image-artifact && sha256sum *.tar.gz > "kambuzi-timeforing-images-${GITHUB_SHA}-${{ matrix.arch }}.tar.gz.sha256")
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: image-artifact/*
       - uses: actions/upload-artifact@v4
         with:
           name: selfhost-image-${{ matrix.arch }}
@@ -118,6 +123,9 @@ jobs:
           for file in release-a/*; do
             cmp "$file" "release-b/$(basename "$file")"
           done
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: release-a/*
       - uses: actions/upload-artifact@v4
         with:
           name: selfhost-source

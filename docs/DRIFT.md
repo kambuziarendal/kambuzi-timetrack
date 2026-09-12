@@ -53,7 +53,7 @@ Scriptet kontrollerer checksum når `.sha256` finnes, tar først ny verifisert p
 ## Oppgradering
 
 1. Last ned release og riktig offlineimage.
-2. Kontroller SHA-256/signatur.
+2. Kontroller SHA-256 og GitHub-attestasjon når GitHub CLI er tilgjengelig.
 3. Last image med `./scripts/load-offline-images.sh`.
 4. Kjør:
 

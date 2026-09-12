@@ -31,7 +31,7 @@ sha256sum -c kambuzi-timeforing-*.sha256
 sha256sum -c kambuzi-timeforing-images-*.sha256
 ```
 
-Hvis releasechecksums er signert, kontroller signaturen før installasjon.
+Verifiser også GitHub-attestasjonen når GitHub CLI er tilgjengelig: `gh attestation verify <fil> --repo kambuziarendal/kambuzi-timetrack`. Offlineinstallasjon kan fortsatt kontrollere SHA-256 uten GitHub-tilgang.
 
 ## 3. Pakk ut og last images
 

@@ -44,7 +44,7 @@ Hver offentlig beta.3-release skal ha:
 - SHA-256 for kildearkiv, SBOM, manifest og imagearkiver
 - CycloneDX-SBOM
 - ferdigbygde låste `linux/amd64`- og `linux/arm64`-imagearkiver med app + `postgres:17.7-bookworm`
-- signerte checksums eller signert releaseattest med publisert nøkkel/fingerprint
+- GitHub Artifact Attestations for kildearkiv, SBOM, manifest og imagearkiver
 
 Ingen installasjonssteg bruker `latest`.
 
