@@ -49,9 +49,12 @@ jobs:
       - run: |
           mkdir -p image-artifact
           image="kambuzi-timeforing:${GITHUB_SHA}"
+          database_image="postgres:17.7-bookworm"
           docker image inspect "$image" >/dev/null
-          docker save "$image" | gzip -n -9 > "image-artifact/kambuzi-timeforing-image-${GITHUB_SHA}.tar.gz"
-          (cd image-artifact && sha256sum *.tar.gz > "kambuzi-timeforing-image-${GITHUB_SHA}.tar.gz.sha256")
+          docker image inspect "$database_image" >/dev/null
+          docker save "$image" "$database_image" | gzip -n -9 > "image-artifact/kambuzi-timeforing-images-${GITHUB_SHA}.tar.gz"
+          gzip -t "image-artifact/kambuzi-timeforing-images-${GITHUB_SHA}.tar.gz"
+          (cd image-artifact && sha256sum *.tar.gz > "kambuzi-timeforing-images-${GITHUB_SHA}.tar.gz.sha256")
       - uses: actions/upload-artifact@v4
         with:
           name: selfhost-image
