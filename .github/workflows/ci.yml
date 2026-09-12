@@ -84,9 +84,10 @@ jobs:
       - run: npm ci
       - run: ./scripts/build-release.sh release-a
       - run: ./scripts/build-release.sh release-b
-      - run: cmp release-a/*.tar.gz release-b/*.tar.gz
-      - run: cmp release-a/*.sha256 release-b/*.sha256
-      - run: cmp release-a/*.sbom.json release-b/*.sbom.json
+      - run: |
+          for file in release-a/*; do
+            cmp "" "release-b/1000 27 100 1000basename "")"
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: selfhost-source
