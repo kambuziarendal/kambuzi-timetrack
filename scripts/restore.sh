@@ -8,7 +8,6 @@ archive=${1:-}
 [ -n "$archive" ] && [ -f "$archive" ] || { echo 'Oppgi en eksisterende .dump-fil.' >&2; exit 1; }
 [ ! -f "$archive.sha256" ] || sha256sum -c "$archive.sha256"
 case "$(realpath "$archive")" in "$(realpath backups)"/*) ;; *) echo 'Arkivet må ligge i backups/.' >&2; exit 1;; esac
-[ ! -f ".sha256" ] || sha256sum -c ".sha256"
 ./scripts/backup.sh
 compose stop app
 restore_failed=0
