@@ -16,6 +16,7 @@ services:
     security_opt: ["no-new-privileges:true"]
 
   app:
+    image: kambuzi-timeforing:${IMAGE_TAG:-local}
     build:
       context: .
       args:

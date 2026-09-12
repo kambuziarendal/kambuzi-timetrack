@@ -35,6 +35,7 @@ jobs:
           sed -i 's/BYTTES_AUTOMATISK_AV_INSTALLASJONEN/ci-only-database-password/' .env
           sed -i 's#https://timer.eksempel.no#http://127.0.0.1:4080#' .env
           sed -i 's/SECURE_COOKIES=true/SECURE_COOKIES=false/' .env
+          sed -i "s/IMAGE_TAG=local/IMAGE_TAG=${GITHUB_SHA}/" .env
           mkdir -p backups
           touch backups/.kambuzi-timeforing-backups
       - run: docker compose config --quiet
@@ -45,6 +46,16 @@ jobs:
           archive=$(find backups -maxdepth 1 -name '*.dump' -type f | head -n 1)
           CONFIRM_RESTORE=YES ./scripts/restore.sh "$archive"
       - run: curl --fail http://127.0.0.1:4080/health/ready
+      - run: |
+          mkdir -p image-artifact
+          image="kambuzi-timeforing:${GITHUB_SHA}"
+          docker image inspect "$image" >/dev/null
+          docker save "$image" | gzip -n -9 > "image-artifact/kambuzi-timeforing-image-${GITHUB_SHA}.tar.gz"
+          (cd image-artifact && sha256sum *.tar.gz > "kambuzi-timeforing-image-${GITHUB_SHA}.tar.gz.sha256")
+      - uses: actions/upload-artifact@v4
+        with:
+          name: selfhost-image
+          path: image-artifact/*
       - if: always()
         run: docker compose logs --no-color
   release:
