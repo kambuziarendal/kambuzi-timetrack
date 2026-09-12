@@ -11,3 +11,9 @@ frontend/.env
 timetrack-web-test/
 .DS_Store
 *.log
+artifacts/
+test-results/
+dist-release/
+release-a/
+release-b/
+backups/

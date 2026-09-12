@@ -1,98 +1,68 @@
-# TimeTrack
+# Kambuzi Timeføring
 
-TimeTrack er en norsk timeføringsapp-prototype for små bedrifter. Den er laget for enkel registrering av arbeidstid, ansatte, arbeidsroller, rapporter og tekniske compliance-varsler knyttet til arbeidstid.
+Et enkelt, gratis og selvhostet system for timeføring i små virksomheter. Én installasjon tilhører én virksomhet. Ingen telemetri, reklame eller skytjeneste fra Kambuzi er nødvendig.
 
-Dette er **ikke produksjonsklar programvare ennå**. Compliance-reglene er hjelperegler/varsler, ikke juridisk fasit.
+## Dette får du
 
-## Hva som finnes nå
+- ansatte fører dato, start, slutt, pause og notat fra mobil eller PC
+- vakt over midnatt håndteres automatisk
+- utkast kan redigeres, slettes og sendes inn
+- leder kan godkjenne, sende tilbake og låse perioder
+- lønnsbehandlede registreringer kan merkes og spores
+- rapporter filtreres på periode, ansatt, arbeidsrolle, status og behandling
+- samme filter brukes for skjerm, CSV og PDF
+- ansatt-, arbeidsrolle- og virksomhetsadministrasjon
+- auditlogg for sikkerhets- og dataendringer
+- komplett dataeksport
+- verifisert PostgreSQL-backup og kontrollert restore
+- administrator-recovery fra serverkonsollen
 
-- Bedrift + admin-registrering
-- Login med JWT
-- Ansattregister
-- Obligatorisk fødselsdato på ansatte, brukt for varsler om unge arbeidstakere
-- Arbeidsroller, f.eks. Kokk, Servitør, Bartender
-- Fargevalg for arbeidsroller med synlige fargeknapper
-- Opprett arbeidsrolle direkte når du oppretter ansatt
-- Timeføring med:
-  - dagens dato forhåndsutfylt
-  - kalenderfelt i web
-  - “Fra klokken” / “Til klokken” i stedet for ISO-felt
-  - raske vaktvalg
-  - pause i minutter
-  - live sum timer
-- Arbeidsregler og compliance-side med forklaring og AML-referanser
-- Rapporter med:
-  - datovelger fra/til
-  - periodesnarveier
-  - ansattfilter
-  - arbeidsrollefilter
-  - summer per ansatt
-  - total for alle valgte
-  - markering av timer som utbetalt / ferdig behandlet
-- Enkel CSV/PDF-eksport i backend, men ikke ferdig koblet til de nye rapportfiltrene
+Dette er et registrerings- og dokumentasjonsverktøy. Det beregner ikke lønn, skatt eller juridisk etterlevelse og erstatter ikke regnskapsfører eller arbeidsrettslig vurdering.
 
-Se også:
+## Krav
 
-- [`NOTES.md`](./NOTES.md) — mer detaljert notat om hva appen inneholder
-- [`TODO.md`](./TODO.md) — gjenstående arbeid
+- Linux-server eller NAS med Docker Engine og Docker Compose v2
+- en HTTPS-reverse proxy, for eksempel Caddy, nginx eller Traefik
+- minst 1 GB RAM og ca. 2 GB ledig disk i tillegg til egne data/backuper
+- en offentlig eller intern adresse du kontrollerer
 
-## Stack
+## Installer
 
-- Monorepo: `frontend` + `backend`
-- Frontend: Expo, React Native Web, TypeScript, React Navigation, Zustand, React Native Paper
-- Backend: Node.js, Express, TypeScript
-- Database: PostgreSQL + Prisma ORM
-- Test/dev-database: PGlite
-- Auth: JWT access-token + refresh-token, bcrypt
-- Rapporter: PDFKit + json2csv
+1. Pakk ut releasen og gå inn i mappen.
+2. Kjør `./scripts/install.sh`.
+3. Første kjøring oppretter `.env` og stopper. Endre minst `APP_URL`.
+4. Kjør `./scripts/install.sh` på nytt.
+5. Legg HTTPS-proxy foran `127.0.0.1:4080`.
+6. Åpne adressen og opprett virksomheten og første administrator.
 
-## Kom i gang lokalt
+Se [docs/INSTALLASJON.md](docs/INSTALLASJON.md) for komplette eksempler og [docs/DRIFT.md](docs/DRIFT.md) for backup, restore, oppgradering og recovery.
 
-Installer dependencies:
+## Sikkerhetsmodell
 
-```bash
-npm install
-```
+- én virksomhet per installasjon; ingen tenantvelger eller offentlig registrering etter oppsett
+- opaque, hash-lagrede økter i `HttpOnly; SameSite=Strict`-cookie
+- CSRF-verifisering på alle autentiserte skrivekall
+- aktive brukere og roller kontrolleres på hvert kall
+- passord hashes med bcrypt, og startpassord vises bare én gang
+- deaktivering og rolleendring tilbakekaller aktive økter
+- siste aktive administrator kan ikke deaktiveres
+- persondata og passordhash eksponeres aldri av bruker-API-et
+- appcontaineren er read-only og databasen eksponeres ikke på hostport
 
-Kopier env-filer:
+Se [SECURITY.md](SECURITY.md) for rapportering og driftsansvar.
 
-```bash
-cp backend/.env.example backend/.env
-cp frontend/.env.example frontend/.env
-```
+## Utvikling
 
-Generer Prisma-client:
+Krever Node.js 22.
 
 ```bash
-npm --workspace backend run prisma:generate
+npm ci
+npm run check
+npm run test:e2e
 ```
 
-Kjør backend:
+Backend-tester bruker PGlite i minnet. Produksjon bruker PostgreSQL 17.
 
-```bash
-npm run dev:backend
-```
+## Status og lisens
 
-Kjør frontend:
-
-```bash
-npm run dev:frontend
-```
-
-## Demo-login
-
-Etter seed/testoppsett:
-
-- E-post: `admin@timetrack.no`
-- Passord: `Passord123!`
-
-## Viktig om compliance
-
-Arbeidsreglene i appen bygger på arbeidstidskapitlet i arbeidsmiljøloven, men appen gjør bare tekniske kontroller. Før reell bruk må reglene kvalitetssikres mot:
-
-- arbeidsmiljøloven
-- tariffavtaler
-- arbeidsavtaler
-- eventuelle lokale ordninger og unntak
-
-Appen skal hjelpe med å oppdage risiko, ikke erstatte juridisk vurdering.
+Pakken er teknisk klargjort som gratis selvhostet programvare. Før en offentlig GitHub-release må eier velge den endelige friprogramvarelisensen. Se [LICENSE-CHOICE.md](LICENSE-CHOICE.md). Inntil valget er tatt er kildekoden ikke offentlig lisensiert for videredistribusjon.

@@ -1,0 +1,58 @@
+services:
+  db:
+    image: postgres:17.7-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-timeforing}
+      POSTGRES_USER: ${POSTGRES_USER:-timeforing}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD må settes i .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    security_opt: ["no-new-privileges:true"]
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-timeforing}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-timeforing}
+      PGHOST: db
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-timeforing}
+      PGUSER: ${POSTGRES_USER:-timeforing}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      APP_URL: ${APP_URL:?APP_URL må settes i .env}
+      SECURE_COOKIES: ${SECURE_COOKIES:-true}
+      TRUST_PROXY: ${TRUST_PROXY:-1}
+      SESSION_DAYS: ${SESSION_DAYS:-7}
+    ports:
+      - "127.0.0.1:${HTTP_PORT:-4080}:4000"
+    volumes:
+      - ./backups:/backups
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "curl",
+          "--fail",
+          "--silent",
+          "http://127.0.0.1:4000/health/ready",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs: ["/tmp:size=64m,mode=1777"]
+
+volumes:
+  postgres_data:

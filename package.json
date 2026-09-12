@@ -1,23 +1,32 @@
 {
-  "name": "timetrack",
+  "name": "kambuzi-timeforing",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0-beta.1",
+  "engines": {
+    "node": ">=22 <23"
+  },
   "workspaces": [
     "backend",
     "frontend"
   ],
   "scripts": {
-    "dev:backend": "npm --workspace backend run dev",
-    "dev:frontend": "npm --workspace frontend run web",
-    "build": "npm --workspaces run build",
-    "test": "npm --workspaces run test --if-present",
-    "test:db": "node scripts/start-test-db.mjs",
-    "test:prepare": "npm --workspace backend run prisma:generate && npm --workspace backend exec prisma db push && npm --workspace backend run seed"
+    "build": "npm run build --workspace backend && npm run build --workspace frontend",
+    "dev": "npm-run-all --parallel dev:backend dev:frontend",
+    "dev:backend": "npm run dev --workspace backend",
+    "dev:frontend": "npm run dev --workspace frontend",
+    "lint": "npm run lint --workspace backend && npm run lint --workspace frontend",
+    "test": "npm run test --workspace backend && npm run test --workspace frontend",
+    "test:e2e": "playwright test",
+    "check": "npm run lint && npm test && npm run build"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.4.5",
-    "pglite-prisma-adapter": "^0.7.2",
-    "pglite-server": "^0.1.5",
-    "playwright": "^1.59.1"
+    "@axe-core/playwright": "4.13.0",
+    "@electric-sql/pglite": "0.5.8",
+    "@playwright/test": "1.63.0",
+    "npm-run-all": "4.1.5",
+    "prettier": "3.6.2"
+  },
+  "overrides": {
+    "qs": "6.16.0"
   }
 }

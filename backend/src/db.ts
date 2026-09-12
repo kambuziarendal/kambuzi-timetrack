@@ -1,26 +1,43 @@
-import 'dotenv/config';
-import { PrismaClient } from '@prisma/client';
+import pg from 'pg';
+import { env } from './env.js';
 
-let client: PrismaClient;
+const { Pool } = pg;
+export type DbClient = { query: <T extends pg.QueryResultRow = any>(text: string, values?: unknown[]) => Promise<pg.QueryResult<T>>; release: () => void };
+export type DbPool = { query: DbClient['query']; connect: () => Promise<DbClient>; end: () => Promise<void> };
 
-if (process.env.DATABASE_DIR) {
-  const [{ PGlite }, { PrismaPGlite }] = await Promise.all([
-    import('@electric-sql/pglite'),
-    import('pglite-prisma-adapter')
-  ]);
-  const pglite = new PGlite({ dataDir: process.env.DATABASE_DIR });
-  const adapter = new PrismaPGlite(pglite);
-  client = new PrismaClient({ adapter });
-} else {
-  const { PrismaPg } = await import('@prisma/adapter-pg');
-  const connectionString = process.env.DATABASE_URL;
-
-  if (!connectionString) {
-    throw new Error('DATABASE_URL må være satt når DATABASE_DIR ikke brukes.');
+async function createPool(): Promise<DbPool> {
+  if (env.DATABASE_URL === 'pglite://memory') {
+    const { PGlite } = await import('@electric-sql/pglite');
+    const database = new PGlite();
+    await database.waitReady;
+    const query: DbClient['query'] = async (text, values = []) => {
+      if (!values.length && text.split(';').filter(part => part.trim()).length > 1) {
+        await database.exec(text);
+        return { rows: [], rowCount: 0, command: '', oid: 0, fields: [] } as pg.QueryResult<any>;
+      }
+      const result = await database.query(text, values);
+      return { rows: result.rows, rowCount: result.rows.length || result.affectedRows || 0, command: '', oid: 0, fields: [] } as pg.QueryResult<any>;
+    };
+    return { query, connect: async () => ({ query, release: () => undefined }), end: async () => database.close() };
   }
-
-  const adapter = new PrismaPg({ connectionString });
-  client = new PrismaClient({ adapter });
+  return new Pool({ connectionString: env.DATABASE_URL, max: 10 }) as unknown as DbPool;
 }
 
-export const prisma = client;
+export const pool = await createPool();
+
+export async function withTransaction<T>(fn: (client: DbClient) => Promise<T>): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function closeDatabase() { await pool.end(); }
