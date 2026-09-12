@@ -134,6 +134,10 @@ test("førstegangsoppsett, admin, ansatt og låst lønnsgrunnlag", async ({
   await page.getByRole("button", { name: "Vis rapport" }).click();
   await expect(page.getByText("Totalt: 5,50 timer")).toBeVisible();
   if (testInfo.project.name === "mobile") {
+    await page.screenshot({
+      path: "artifacts/mobile-light-reports.png",
+      fullPage: true,
+    });
     await page.getByRole("button", { name: "Bruk mørkt tema" }).click();
     await page.screenshot({
       path: "artifacts/mobile-dark-reports.png",
