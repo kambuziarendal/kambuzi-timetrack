@@ -12,8 +12,8 @@
     "start": "tsx src/server.ts",
     "test": "vitest run",
     "migrate": "tsx src/migrate.ts",
-    "demo-cleanup": "tsx src/cleanupDemo.ts",
-    "demo-smtp-check": "tsx src/verifyDemoSmtp.ts",
+    "demo-cleanup": "node dist/cleanupDemo.js",
+    "demo-smtp-check": "node dist/verifyDemoSmtp.js",
     "reset-admin": "tsx src/resetAdmin.ts",
     "bootstrap-admin": "tsx src/bootstrapAdmin.ts"
   },
