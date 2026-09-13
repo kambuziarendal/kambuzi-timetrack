@@ -96,6 +96,12 @@ test("førstegangsoppsett, admin, ansatt og låst lønnsgrunnlag", async ({
   await page.getByRole("button", { name: "Oppdater" }).click();
   await expect(page.getByRole("button", { name: "Bytt nå" })).not.toBeVisible();
   await page.getByRole("button", { name: "Før dagens timer" }).click();
+  expect(
+    await page.evaluate(() => ({
+      locale: Intl.DateTimeFormat().resolvedOptions().locale,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    })),
+  ).toEqual({ locale: "nb-NO", timezone: "Europe/Oslo" });
   await page.getByLabel("Fra").fill("09:00");
   await page.getByLabel("Til").fill("15:00");
   await page.getByLabel("Pause (min)").fill("30");

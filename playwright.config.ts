@@ -12,6 +12,8 @@ export default defineConfig({
   ],
   use: {
     baseURL: "http://127.0.0.1:4199",
+    locale: "nb-NO",
+    timezoneId: "Europe/Oslo",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },

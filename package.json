@@ -23,7 +23,7 @@
     "lint": "npm run lint --workspace backend && npm run lint --workspace frontend",
     "test": "npm run test --workspace backend && npm run test --workspace frontend",
     "test:subpath": "node scripts/check-subpath-build.mjs",
-    "test:e2e": "playwright test",
+    "test:e2e": "./scripts/playwright-nb-no.sh",
     "check": "npm run lint && npm test && npm run build"
   },
   "devDependencies": {
