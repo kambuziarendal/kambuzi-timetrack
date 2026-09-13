@@ -11,6 +11,7 @@ export type AppUser = {
   lastName: string;
   role: AppRole;
   isActive: boolean;
+  demoExpiresAt?: Date | string | null;
 };
 declare global {
   namespace Express {
@@ -55,9 +56,10 @@ export async function optionalAuth(
   const result = await pool.query<AppUser & { sessionId: string }>(
     `
     SELECT u.id, u.email, u.first_name AS "firstName", u.last_name AS "lastName",
-           u.role, u.is_active AS "isActive", s.id AS "sessionId"
+           u.role, u.is_active AS "isActive", u.demo_expires_at AS "demoExpiresAt", s.id AS "sessionId"
       FROM sessions s JOIN users u ON u.id = s.user_id
      WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > now() AND u.is_active = true
+       AND (u.demo_expires_at IS NULL OR u.demo_expires_at > now())
   `,
     [tokenHash(token)],
   );
@@ -72,6 +74,7 @@ export async function optionalAuth(
       lastName: row.lastName,
       role: row.role,
       isActive: row.isActive,
+      demoExpiresAt: row.demoExpiresAt,
     };
   }
   next();
@@ -93,7 +96,12 @@ export async function requireCsrf(
 ) {
   if (
     ["GET", "HEAD", "OPTIONS"].includes(req.method) ||
-    ["/api/auth/login", "/api/setup"].includes(req.path)
+    [
+      "/api/auth/login",
+      "/api/setup",
+      "/api/demo/request",
+      "/api/demo/redeem",
+    ].includes(req.path)
   )
     return next();
   if (!req.sessionId)

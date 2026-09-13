@@ -1,7 +1,7 @@
 {
   "name": "kambuzi-timeforing-backend",
   "private": true,
-  "version": "1.0.0-beta.4",
+  "version": "1.0.0-beta.5",
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "main": "dist/server.js",
@@ -12,6 +12,8 @@
     "start": "tsx src/server.ts",
     "test": "vitest run",
     "migrate": "tsx src/migrate.ts",
+    "demo-cleanup": "tsx src/cleanupDemo.ts",
+    "demo-smtp-check": "tsx src/verifyDemoSmtp.ts",
     "reset-admin": "tsx src/resetAdmin.ts",
     "bootstrap-admin": "tsx src/bootstrapAdmin.ts"
   },
@@ -21,6 +23,7 @@
     "express-rate-limit": "8.7.0",
     "helmet": "8.3.0",
     "json2csv": "6.0.0-alpha.2",
+    "nodemailer": "10.0.9",
     "pdfkit": "0.20.2",
     "pg": "8.23.0",
     "qs": "6.16.0",
@@ -29,6 +32,7 @@
   "devDependencies": {
     "@types/express": "5.0.6",
     "@types/node": "22.20.2",
+    "@types/nodemailer": "8.0.1",
     "@types/pdfkit": "0.17.6",
     "@types/pg": "8.23.1",
     "@types/supertest": "7.2.1",

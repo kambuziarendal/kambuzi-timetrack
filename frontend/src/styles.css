@@ -290,6 +290,54 @@ nav button.active {
   height: 5px;
   background: linear-gradient(90deg, var(--green), var(--accent));
 }
+.auth-card-demo {
+  width: min(560px, 100%);
+}
+.demo-access {
+  margin: 1.5rem 0;
+  padding: clamp(1rem, 4vw, 1.4rem);
+  border: 1px solid var(--active-border);
+  border-radius: 16px;
+  background: var(--paper-soft);
+}
+.demo-access h2 {
+  margin-top: 0;
+}
+.demo-consent {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.7rem;
+  align-items: start;
+  font-weight: 600;
+}
+.demo-consent input {
+  width: 22px;
+  min-height: 22px;
+  margin-top: 0.08rem;
+}
+.demo-honeypot {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.existing-login {
+  margin-top: 1rem;
+  border-top: 1px solid var(--line);
+  padding-top: 1rem;
+}
+.existing-login summary {
+  cursor: pointer;
+  color: var(--green);
+  font-weight: 750;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+.existing-login[open] summary {
+  margin-bottom: 1rem;
+}
 .eyebrow {
   text-transform: uppercase;
   letter-spacing: 0.12em;

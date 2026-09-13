@@ -1,5 +1,15 @@
 # Endringslogg
 
+## 1.0.0-beta.5 — 2026-09-13
+
+- valgfri, isolert 24-timers live-demo med én midlertidig ansattbruker per e-postadresse
+- engangslenke på e-post erstatter passordutsending; bare tokenhash lagres
+- demobrukere ser bare egne registreringer og har ingen admin- eller rapporttilgang
+- konto, økter, token, timeføringer og tilhørende auditdata slettes automatisk etter utløp
+- økter avgrenses til kontoens gjenværende levetid, og utløpte kontoer avvises før opprydding
+- IP-begrensning, botfelt, samtykke og konfigurerbart kapasitetstak på offentlig registrering
+- dokumentert SMTP-/TLS-oppsett, manuell opprydding og særskilt drift av isolert demoinstallasjon
+
 ## 1.0.0-beta.4 — 2026-09-12
 
 - lagt til én samlet offline-installasjonspakke og en veiviser som oppretter administrator lokalt før offentlig eksponering

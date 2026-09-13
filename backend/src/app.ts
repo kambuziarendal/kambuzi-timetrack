@@ -14,6 +14,7 @@ import { meRouter } from "./routes/me.js";
 import { adminRouter } from "./routes/admin.js";
 import { timeEntriesRouter } from "./routes/timeEntries.js";
 import { reportsRouter } from "./routes/reports.js";
+import { demoRouter } from "./routes/demo.js";
 
 export const app = express();
 const packagePath = path.resolve(
@@ -72,11 +73,14 @@ app.get("/health/live", (_req, res) =>
 app.get("/health/ready", async (_req, res) => {
   try {
     await pool.query("SELECT 1");
-    const [migration, settings] = await Promise.all([
+    const [migration, settings, demoUsers] = await Promise.all([
       pool.query(
         "SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1",
       ),
       pool.query("SELECT count(*)::int AS count FROM app_settings"),
+      pool.query(
+        "SELECT count(*)::int AS count FROM users WHERE demo_expires_at>now()",
+      ),
     ]);
     res.json({
       ok: true,
@@ -85,6 +89,11 @@ app.get("/health/ready", async (_req, res) => {
       setupRequired: Number(settings.rows[0]?.count ?? 0) === 0,
       version: appVersion,
       release: env.RELEASE_SHA,
+      demo: {
+        enabled: env.DEMO_MODE,
+        activeUsers: Number(demoUsers.rows[0]?.count ?? 0),
+        maximumUsers: env.DEMO_MAX_ACTIVE_USERS,
+      },
     });
   } catch {
     res.status(503).json({ ok: false, database: "error" });
@@ -98,6 +107,7 @@ app.get("/version", (_req, res) =>
   }),
 );
 app.use("/api/setup", setupRouter);
+app.use("/api/demo", demoRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/me", meRouter);
 app.use("/api/admin", adminRouter);

@@ -88,6 +88,10 @@ docker compose exec app node backend/dist/resetAdmin.js admin@eksempel.no
 
 Midlertidig passord vises én gang og må byttes ved neste innlogging.
 
+## Valgfri live-demo
+
+Vanlige kundeinstallasjoner skal ha `DEMO_MODE=false`. En separat, offentlig testinstallasjon kan bruke tidsbegrensede demobrukere, engangslenker og automatisk sletting etter oppsettet i [LIVE-DEMO.md](LIVE-DEMO.md).
+
 ## Feilsøking
 
 ```bash

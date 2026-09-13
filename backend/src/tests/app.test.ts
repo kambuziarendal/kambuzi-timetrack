@@ -4,10 +4,17 @@ import supertest from "supertest";
 process.env.NODE_ENV = "test";
 process.env.DATABASE_URL = "pglite://memory";
 process.env.SECURE_COOKIES = "false";
+process.env.APP_URL = "http://localhost:4000/timetest/";
+process.env.DEMO_MODE = "true";
+process.env.SMTP_HOST = "smtp.example.test";
+process.env.SMTP_FROM_EMAIL = "timeforing@example.test";
 
 let app: typeof import("../app.js").app;
 let closeDatabase: typeof import("../db.js").closeDatabase;
 let migrate: typeof import("../migrate.js").migrate;
+let pool: typeof import("../db.js").pool;
+let cleanupExpiredDemoUsers: typeof import("../services/demoCleanup.js").cleanupExpiredDemoUsers;
+let testDemoMailbox: typeof import("../services/demoMail.js").testDemoMailbox;
 let admin = supertest.agent("http://127.0.0.1");
 let employee = supertest.agent("http://127.0.0.1");
 let adminCsrf = "";
@@ -25,7 +32,10 @@ const mutation = (
 beforeAll(async () => {
   ({ app } = await import("../app.js"));
   ({ closeDatabase } = await import("../db.js"));
+  ({ pool } = await import("../db.js"));
   ({ migrate } = await import("../migrate.js"));
+  ({ cleanupExpiredDemoUsers } = await import("../services/demoCleanup.js"));
+  ({ testDemoMailbox } = await import("../services/demoMail.js"));
   await migrate();
   await migrate();
   admin = supertest.agent(app);
@@ -92,6 +102,117 @@ describe("selvhostet Timeføring API", () => {
       .post("/api/admin/users")
       .send({ firstName: "Uten", lastName: "Csrf", email: "csrf@example.test" })
       .expect(403);
+  });
+  it("gir isolert demo via engangslenke og sletter alle data etter 24 timer", async () => {
+    const status = await supertest(app).get("/api/demo/status").expect(200);
+    expect(status.body).toMatchObject({ enabled: true, durationHours: 24 });
+
+    await supertest(app)
+      .post("/api/demo/request")
+      .send({
+        name: "Demo Nora",
+        email: "demo-nora@example.test",
+        accepted: true,
+        website: "",
+      })
+      .expect(202);
+    expect(testDemoMailbox).toHaveLength(1);
+    const loginUrl = new URL(testDemoMailbox[0]!.loginUrl);
+    expect(loginUrl.pathname).toBe("/timetest/");
+    const token = new URLSearchParams(loginUrl.hash.slice(1)).get("demo_token");
+    expect(token).toBeTruthy();
+    const storedToken = await pool.query<{ token_hash: string }>(
+      "SELECT token_hash FROM demo_login_tokens WHERE user_id=(SELECT id FROM users WHERE email=$1)",
+      ["demo-nora@example.test"],
+    );
+    expect(storedToken.rows[0]?.token_hash).toMatch(/^[a-f0-9]{64}$/);
+    expect(storedToken.rows[0]?.token_hash).not.toBe(token);
+
+    const demo = supertest.agent(app);
+    const redeemed = await demo
+      .post("/api/demo/redeem")
+      .send({ token })
+      .expect(200);
+    expect(redeemed.body.user).toMatchObject({
+      email: "demo-nora@example.test",
+      role: "EMPLOYEE",
+      mustChangePassword: false,
+    });
+    expect(redeemed.body.user.demoExpiresAt).toBeTruthy();
+    const demoSession = await pool.query<{ expires_at: Date | string }>(
+      `SELECT s.expires_at FROM sessions s
+        JOIN users u ON u.id=s.user_id
+       WHERE u.email=$1 AND s.revoked_at IS NULL`,
+      ["demo-nora@example.test"],
+    );
+    expect(
+      new Date(demoSession.rows[0]!.expires_at).getTime(),
+    ).toBeLessThanOrEqual(new Date(redeemed.body.user.demoExpiresAt).getTime());
+    await supertest(app).post("/api/demo/redeem").send({ token }).expect(401);
+
+    const csrf = redeemed.body.csrfToken as string;
+    await demo.get("/api/admin/users").expect(403);
+    await demo
+      .get("/api/reports?from=2026-09-01&to=2026-09-30")
+      .expect(403);
+    const created = await mutation(demo, csrf, "post", "/api/time-entries")
+      .send({
+        date: new Date().toLocaleDateString("en-CA", {
+          timeZone: "Europe/Oslo",
+        }),
+        start: "09:00",
+        end: "15:00",
+        breakMinutes: 30,
+        note: "Min private demovakt",
+      })
+      .expect(201);
+
+    await supertest(app)
+      .post("/api/demo/request")
+      .send({
+        name: "Demo Omar",
+        email: "demo-omar@example.test",
+        accepted: true,
+        website: "",
+      })
+      .expect(202);
+    const secondToken = new URLSearchParams(
+      new URL(testDemoMailbox[1]!.loginUrl).hash.slice(1),
+    ).get("demo_token");
+    const otherDemo = supertest.agent(app);
+    await otherDemo
+      .post("/api/demo/redeem")
+      .send({ token: secondToken })
+      .expect(200);
+    const otherRows = await otherDemo.get("/api/time-entries").expect(200);
+    expect(otherRows.body).toEqual([]);
+
+    await pool.query(
+      "UPDATE users SET demo_expires_at=now()-interval '1 minute' WHERE email=$1",
+      ["demo-nora@example.test"],
+    );
+    expect(await cleanupExpiredDemoUsers()).toBe(1);
+    expect(
+      Number(
+        (
+          await pool.query(
+            "SELECT count(*)::int AS count FROM users WHERE email=$1",
+            ["demo-nora@example.test"],
+          )
+        ).rows[0].count,
+      ),
+    ).toBe(0);
+    expect(
+      Number(
+        (
+          await pool.query(
+            "SELECT count(*)::int AS count FROM time_entries WHERE id=$1",
+            [created.body.id],
+          )
+        ).rows[0].count,
+      ),
+    ).toBe(0);
+    await demo.get("/api/me").expect(401);
   });
   it("returnerer bare nødvendige brukerfelt og lager et unikt startpassord", async () => {
     const created = await mutation(admin, adminCsrf, "post", "/api/admin/users")
@@ -420,14 +541,14 @@ describe("selvhostet Timeføring API", () => {
     expect(ready.body).toMatchObject({
       ok: true,
       database: "ok",
-      migration: "002_operational_indexes.sql",
+      migration: "003_demo_access.sql",
       setupRequired: false,
-      version: "1.0.0-beta.4",
+      version: "1.0.0-beta.5",
       release: "development",
     });
     await supertest(app).get("/version").expect(200, {
       name: "Kambuzi Timeføring",
-      version: "1.0.0-beta.4",
+      version: "1.0.0-beta.5",
       release: "development",
     });
   });

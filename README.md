@@ -34,6 +34,8 @@ Se [docs/HURTIGSTART.md](docs/HURTIGSTART.md) for 10–15 minutters installasjon
 
 Se [docs/RELEASEKRAV.md](docs/RELEASEKRAV.md) for skillet mellom beta, release candidate og stabil 1.0.0.
 
+En isolert testinstallasjon kan valgfritt tilby separate 24-timers demobrukere med engangslenke på e-post og automatisk datasletting. Dette er avslått som standard; se [docs/LIVE-DEMO.md](docs/LIVE-DEMO.md).
+
 ## Releaseinnhold
 
 Hver offentlig release skal ha:

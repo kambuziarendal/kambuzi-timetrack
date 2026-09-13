@@ -237,3 +237,74 @@ test("mørkt tema følger systemet og lagrer manuelt valg", async ({
     fullPage: true,
   });
 });
+
+test("24-timersdemoen er enkel, samtykkebasert og mobilvennlig", async ({
+  page,
+}, testInfo) => {
+  await page.route("**/api/setup/status", async (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ required: false, browserSetupAllowed: false }),
+    }),
+  );
+  await page.route("**/api/auth/session", async (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ user: null }),
+    }),
+  );
+  await page.route("**/api/demo/status", async (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ enabled: true, durationHours: 24 }),
+    }),
+  );
+  await page.route("**/api/demo/request", async (route) => {
+    expect(route.request().method()).toBe("POST");
+    expect(route.request().postDataJSON()).toMatchObject({
+      name: "Nora Demo",
+      email: "nora@example.test",
+      accepted: true,
+      website: "",
+    });
+    await route.fulfill({
+      status: 202,
+      contentType: "application/json",
+      body: JSON.stringify({ message: "Sjekk e-posten din." }),
+    });
+  });
+
+  await page.goto("/");
+  if (
+    await page
+      .getByRole("button", { name: "Logg ut" })
+      .isVisible()
+      .catch(() => false)
+  )
+    await page.getByRole("button", { name: "Logg ut" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Privat demo i 24 timer" }),
+  ).toBeVisible();
+  await page
+    .getByRole("textbox", { name: "Navn", exact: true })
+    .fill("Nora Demo");
+  await page.getByLabel("E-post").first().fill("nora@example.test");
+  await page.getByLabel(/Jeg godtar at navn, e-post og demodata/).check();
+  await page.getByRole("button", { name: "Send meg demolenken" }).click();
+  await expect(page.getByText("Sjekk e-posten din.")).toBeVisible();
+
+  const accessibility = await new AxeBuilder({ page }).analyze();
+  expect(accessibility.violations).toEqual([]);
+  expect(
+    await page
+      .locator("body")
+      .evaluate((el) => el.scrollWidth <= el.clientWidth + 1),
+  ).toBe(true);
+  await page.screenshot({
+    path: `artifacts/${testInfo.project.name}-demo-access.png`,
+    fullPage: true,
+  });
+});

@@ -84,6 +84,7 @@ type User = {
   isActive?: boolean;
   positionId?: string | null;
   positionName?: string | null;
+  demoExpiresAt?: string | null;
 };
 type Entry = {
   id: string;
@@ -248,14 +249,20 @@ function Setup({
 }
 function Login({
   onLogin,
+  demo,
+  accessNotice,
   theme,
   onToggleTheme,
 }: {
   onLogin: (u: User) => void;
+  demo: { enabled: boolean; durationHours: number };
+  accessNotice?: string;
   theme: Theme;
   onToggleTheme: () => void;
 }) {
   const [error, setError] = useState("");
+  const [demoMessage, setDemoMessage] = useState("");
+  const [demoSending, setDemoSending] = useState(false);
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
@@ -271,30 +278,116 @@ function Login({
       setError((x as Error).message);
     }
   };
+  const requestDemo = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError("");
+    setDemoMessage("");
+    setDemoSending(true);
+    const form = e.currentTarget;
+    const f = new FormData(form);
+    try {
+      const response = await api<{ message: string }>("/demo/request", {
+        method: "POST",
+        body: JSON.stringify({
+          name: f.get("name"),
+          email: f.get("email"),
+          accepted: f.get("accepted") === "on",
+          website: f.get("website"),
+        }),
+      });
+      setDemoMessage(response.message);
+      form.reset();
+    } catch (x) {
+      setError((x as Error).message);
+    } finally {
+      setDemoSending(false);
+    }
+  };
   return (
     <main className="auth">
-      <section className="auth-card">
+      <section className={`auth-card ${demo.enabled ? "auth-card-demo" : ""}`}>
         <div className="auth-tools">
           <ThemeButton theme={theme} onToggle={onToggleTheme} />
         </div>
         <p className="eyebrow">Selvhostet og gratis</p>
         <ProductBrand asHeading />
         <p>Før timer. Send inn. Godkjenn. Eksporter.</p>
-        <form onSubmit={submit} className="form-grid">
-          <Field label="E-post">
-            <input name="email" type="email" autoComplete="username" required />
-          </Field>
-          <Field label="Passord">
-            <input
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              required
-            />
-          </Field>
-          {error && <Notice type="error">{error}</Notice>}
-          <button className="primary">Logg inn</button>
-        </form>
+        {demo.enabled && (
+          <section
+            className="demo-access"
+            aria-labelledby="demo-access-heading"
+          >
+            <p className="eyebrow">Prøv selv</p>
+            <h2 id="demo-access-heading">
+              Privat demo i {demo.durationHours} timer
+            </h2>
+            <p>
+              Du får en engangslenke på e-post. Du ser bare dine egne
+              registreringer, og kontoen med alle data i demoen slettes
+              automatisk.
+            </p>
+            {accessNotice && <Notice type="error">{accessNotice}</Notice>}
+            <form onSubmit={requestDemo} className="form-grid">
+              <Field label="Navn">
+                <input
+                  name="name"
+                  autoComplete="name"
+                  maxLength={80}
+                  required
+                />
+              </Field>
+              <Field label="E-post">
+                <input
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                />
+              </Field>
+              <label className="demo-consent">
+                <input name="accepted" type="checkbox" required />
+                <span>
+                  Jeg godtar at navn, e-post og demodata lagres i Timeføring i
+                  maksimalt {demo.durationHours} timer.
+                </span>
+              </label>
+              <label className="demo-honeypot" aria-hidden="true">
+                Nettsted
+                <input name="website" tabIndex={-1} autoComplete="off" />
+              </label>
+              {demoMessage && <Notice type="ok">{demoMessage}</Notice>}
+              {error && <Notice type="error">{error}</Notice>}
+              <button className="primary" disabled={demoSending}>
+                {demoSending ? "Sender …" : "Send meg demolenken"}
+              </button>
+            </form>
+          </section>
+        )}
+        <details className="existing-login" open={!demo.enabled}>
+          <summary>
+            {demo.enabled ? "Har du allerede en fast konto?" : "Logg inn"}
+          </summary>
+          <form onSubmit={submit} className="form-grid">
+            <Field label="E-post">
+              <input
+                name="email"
+                type="email"
+                autoComplete="username"
+                required
+              />
+            </Field>
+            <Field label="Passord">
+              <input
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                required
+              />
+            </Field>
+            {!demo.enabled && error && <Notice type="error">{error}</Notice>}
+            <button className="primary">Logg inn</button>
+          </form>
+        </details>
         <LegalNotice />
       </section>
     </main>
@@ -336,7 +429,11 @@ function Shell({
   return (
     <>
       <header>
-        <button className="brand" onClick={() => setPage("oversikt")} aria-label="Oversikt">
+        <button
+          className="brand"
+          onClick={() => setPage("oversikt")}
+          aria-label="Oversikt"
+        >
           <ProductBrand />
         </button>
         <div className="header-actions">
@@ -1357,13 +1454,15 @@ function Settings() {
 export function App() {
   const [loading, setLoading] = useState(true),
     [startupError, setStartupError] = useState(""),
+    [accessNotice, setAccessNotice] = useState(""),
     [setup, setSetup] = useState(false),
     [browserSetupAllowed, setBrowserSetupAllowed] = useState(false),
     [user, setUser] = useState<User | null>(null),
     [theme, setTheme] = useState<Theme>(initialTheme),
     [page, setPage] = useState("oversikt"),
     [refresh, setRefresh] = useState(0),
-    [users, setUsers] = useState<User[]>([]);
+    [users, setUsers] = useState<User[]>([]),
+    [demo, setDemo] = useState({ enabled: false, durationHours: 24 });
   useEffect(() => setDocumentTheme(theme), [theme]);
   const toggleTheme = () => {
     const next = theme === "dark" ? "light" : "dark";
@@ -1371,13 +1470,39 @@ export function App() {
     setTheme(next);
   };
   useEffect(() => {
+    const hashParams = new URLSearchParams(window.location.hash.slice(1));
+    const demoToken = hashParams.get("demo_token");
+    if (demoToken) {
+      hashParams.delete("demo_token");
+      const hash = hashParams.toString();
+      window.history.replaceState(
+        {},
+        "",
+        `${window.location.pathname}${window.location.search}${hash ? `#${hash}` : ""}`,
+      );
+    }
+    const authentication = demoToken
+      ? api<{ user: User; csrfToken: string }>("/demo/redeem", {
+          method: "POST",
+          body: JSON.stringify({ token: demoToken }),
+        }).catch((error) => {
+          setAccessNotice(
+            error instanceof Error
+              ? error.message
+              : "Demolenken kunne ikke brukes.",
+          );
+          return { user: null, csrfToken: undefined };
+        })
+      : api<{ user: User | null; csrfToken?: string }>("/auth/session");
     Promise.all([
       api<{ required: boolean; browserSetupAllowed: boolean }>("/setup/status"),
-      api<{ user: User | null; csrfToken?: string }>("/auth/session"),
+      api<{ enabled: boolean; durationHours: number }>("/demo/status"),
+      authentication,
     ])
-      .then(([s, a]) => {
+      .then(([s, d, a]) => {
         setSetup(s.required);
         setBrowserSetupAllowed(s.browserSetupAllowed);
+        setDemo(d);
         if (a.csrfToken) setCsrf(a.csrfToken);
         setUser(a.user);
       })
@@ -1420,7 +1545,13 @@ export function App() {
     );
   if (!user)
     return (
-      <Login onLogin={setUser} theme={theme} onToggleTheme={toggleTheme} />
+      <Login
+        onLogin={setUser}
+        demo={demo}
+        accessNotice={accessNotice}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
     );
   const logout = async () => {
     await api("/auth/logout", { method: "POST" });
@@ -1461,6 +1592,12 @@ export function App() {
       theme={theme}
       onToggleTheme={toggleTheme}
     >
+      {user.demoExpiresAt && (
+        <Notice>
+          Dette er en privat demo. Kontoen og demodataene slettes automatisk{" "}
+          {new Date(user.demoExpiresAt).toLocaleString("nb-NO")}.
+        </Notice>
+      )}
       {user.mustChangePassword && (
         <PasswordBanner
           done={() => setUser({ ...user, mustChangePassword: false })}

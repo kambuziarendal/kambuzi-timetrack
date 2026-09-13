@@ -3,15 +3,13 @@ import rateLimit from "express-rate-limit";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { pool, withTransaction } from "../db.js";
-import { env } from "../env.js";
-import { audit, httpError, id, secret } from "../utils/http.js";
+import { audit, httpError } from "../utils/http.js";
 import {
   clearSessionCookie,
-  csrfTokenFor,
   requireAuth,
   sessionCookie,
-  tokenHash,
 } from "../middleware/auth.js";
+import { createSession } from "../services/sessions.js";
 export const authRouter = Router();
 const limiter = rateLimit({
   windowMs: 15 * 60_000,
@@ -23,24 +21,11 @@ const credentials = z.object({
   email: z.email().transform((v) => v.trim().toLowerCase()),
   password: z.string().min(12).max(200),
 });
-async function createSession(userId: string) {
-  const token = secret(),
-    csrfToken = csrfTokenFor(token),
-    maxAge = env.SESSION_DAYS * 86400;
-  await pool.query(
-    "DELETE FROM sessions WHERE expires_at<now() OR revoked_at IS NOT NULL",
-  );
-  await pool.query(
-    "INSERT INTO sessions(id,user_id,token_hash,csrf_hash,expires_at) VALUES ($1,$2,$3,$4,now()+($5 || ' seconds')::interval)",
-    [id(), userId, tokenHash(token), tokenHash(csrfToken), maxAge],
-  );
-  return { token, csrfToken, maxAge };
-}
 authRouter.post("/login", limiter, async (req, res) => {
   const data = credentials.parse(req.body);
   const user = (
     await pool.query(
-      "SELECT id,email,password_hash,first_name,last_name,role,is_active,must_change_password FROM users WHERE email=$1",
+      "SELECT id,email,password_hash,first_name,last_name,role,is_active,must_change_password,demo_expires_at FROM users WHERE email=$1",
       [data.email],
     )
   ).rows[0];
@@ -50,7 +35,14 @@ authRouter.post("/login", limiter, async (req, res) => {
     !(await bcrypt.compare(data.password, user.password_hash))
   )
     throw httpError(401, "Feil e-post eller passord.");
-  const session = await createSession(user.id);
+  const maximumAgeSeconds = user.demo_expires_at
+    ? Math.floor((new Date(user.demo_expires_at).getTime() - Date.now()) / 1000)
+    : undefined;
+  if (maximumAgeSeconds !== undefined && maximumAgeSeconds <= 0)
+    throw httpError(401, "Feil e-post eller passord.");
+  const session = await withTransaction((client) =>
+    createSession(client, user.id, maximumAgeSeconds),
+  );
   res.setHeader("Set-Cookie", sessionCookie(session.token, session.maxAge));
   res.json({
     csrfToken: session.csrfToken,
@@ -61,6 +53,7 @@ authRouter.post("/login", limiter, async (req, res) => {
       lastName: user.last_name,
       role: user.role,
       mustChangePassword: user.must_change_password,
+      demoExpiresAt: user.demo_expires_at,
     },
   });
 });
